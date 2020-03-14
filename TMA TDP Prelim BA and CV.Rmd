@@ -1,0 +1,241 @@
+---
+title: "TMA TDP Prelim BA and CV"
+author: "Claire S. Peterson"
+date: "7/10/2019"
+output: pdf_document
+---
+
+# TDP
+```{r setup, include=FALSE, tidy=TRUE, tidy.opts=list(width.cutoff=60)}
+knitr::opts_knit$set(echo = TRUE)
+# If this is your first time using R, please install packages with the commented lines below. Note the line will need to be uncommented (delete leading #) in order to run
+# install.packages(c("ggplot2", "BlandAltmanLeh", "readxl", "stargazer", "matrixStats"), dependencies = TRUE)
+# Load packages into the current R session.
+library(ggplot2)  #data visualization
+library(BlandAltmanLeh)
+library(readxl)   #read excel files
+library(stargazer)  #print out clean tables
+library(matrixStats)
+library(corrplot)
+library(gridExtra)
+library(dplyr)
+library(ggExtra)
+library(blandr)
+setwd("U:/FTDC-IrwinLab/TMA Take 2/TDP HALO results")
+list.files()
+tdp_df_halo_raw<- read.csv("TMA_TDP_HALO_RESULTS.csv")   # Import your dataset
+names(tdp_df_halo_raw)
+names(tdp_df_halo_raw) <- c("R1_S1_CORES", "R1_S1", "R1_S2_CORES", "R1_S2", "R2_S1_CORES", "R2_S1", "R2_S2_CORES", "R2_S2", "R2_S3_CORES", "R2_S3",  "R3_S1_CORES", "R3_S1",  "R3_S2_CORES", "R3_S2", "R3_S3_CORES", "R3_S3")
+AO<-tdp_df_halo_raw[,c(2,4,6,8,10,12,14,16)]
+stargazer(as.data.frame(AO), title = "Summary of TMA tdp %AO",type = "text")  # Print summary of AO (contains Mean, SD, Min/Max, and Quartiles)
+# Create function for calculating correlations and outputting lower triangle correlation matrices ####
+lower.tri.cor.matrix <- function(df){
+  cor.matrix<-round(cor(df, use = "complete.obs"), 3)
+  cor.matrix[upper.tri(cor.matrix)]<-""
+  cor.matrix<-as.data.frame(cor.matrix)
+  cor.matrix
+  
+  return(cor.matrix)
+}
+#####     CV VALUES    #####
+inter.assay.cv <- function(df, ...){
+  grp_vars <- quos(...)
+    selected.cols <- df %>%
+    select(!!!grp_vars)
+  dat.as.matrix <- as.matrix(selected.cols)
+  selected.cols$mean <- rowMeans(selected.cols,na.rm = T)
+  selected.cols$sd <- rowSds(dat.as.matrix,na.rm = T)
+  selected.cols <- selected.cols %>%
+    mutate(CV = sd/mean,
+           pct.CV = (sd/mean)*100)
+  
+  return(selected.cols)
+}
+```
+
+
+
+
+
+
+# ***SQUARE ROOT TRANSFORMATION FOR TDP***
+```{r}
+tdp_df_halo <- sqrt(tdp_df_halo_raw[,c(2,4,6,8,10,12,14,16)])
+tdp_df_halo<-subset(tdp_df_halo, !is.na(log(tdp_df_halo_raw[,c(2,4,6,8,10,12,14,16)])))
+```
+##  TDP Before Transformation
+```{r, echo=TRUE}
+
+tdp_df_halo$R1.S2_R2.S2 <- tdp_df_halo$R1_S2 - tdp_df_halo$R2_S2
+tdp_df_halo$R1.S2_R3.S2 <- tdp_df_halo$R1_S2 - tdp_df_halo$R3_S2
+tdp_df_halo$R2.S2_R3.S2 <- tdp_df_halo$R2_S2 - tdp_df_halo$R3_S2
+
+inter2 <- tdp_df_halo[,c("R1_S2", "R2_S2", "R3_S2")]  # Create vector for raw AOs
+inter2_diff <- tdp_df_halo[,c("R1.S2_R2.S2", "R1.S2_R3.S2", "R2.S2_R3.S2")] # Create vector for differences in AOs
+
+####     Inter-assay Linear Models   ####
+# Slide 2
+slide2.r1vr2 <- lm(tdp_df_halo$R1_S2 ~ tdp_df_halo$R2_S2)
+summary(slide2.r1vr2)
+slide2.r2vr3 <- lm(tdp_df_halo$R2_S2 ~ tdp_df_halo$R3_S2)
+summary(slide2.r2vr3)
+slide2.r1vr3 <- lm(tdp_df_halo$R1_S2 ~ tdp_df_halo$R3_S2)
+summary(slide2.r1vr3)
+stargazer(slide2.r1vr2,slide2.r2vr3,slide2.r1vr3, type="text", title = "Slide 2 Inter-assay Linear Regression Models")
+
+# CV Calculations Slide 2 - 4 Combinations 
+R1_R2_R3_S2.cv <- inter.assay.cv(inter2, R1_S2, R2_S2, R3_S2)
+names(R1_R2_R3_S2.cv) <- c("R1_S2", "R2_S2", "R3_S2", "R1_R2_R3_S2_mean", "R1_R2_R3_S2_sd", "R1_R2_R3_S2_CV", "R1_R2_R3_S2_pct.CV")
+R1_R2_S2.cv <- inter.assay.cv(inter2, R1_S2, R2_S2)
+names(R1_R2_S2.cv) <- c("R1_S2", "R2_S2", "R1_R2_S2_mean", "R1_R2_S2_sd", "R1_R2_S2_CV", "R1_R2_S2_pct.CV")
+R1_R3_S2.cv <- inter.assay.cv(inter2, R1_S2, R3_S2)
+names(R1_R3_S2.cv) <- c("R1_S2", "R3_S2", "R1_R3_S2_mean", "R1_R3_S2_sd", "R1_R3_S2_CV", "R1_R3_S2_pct.CV")
+R2_R3_S2.cv <- inter.assay.cv(inter2, R2_S2, R3_S2)
+names(R2_R3_S2.cv) <- c("R2_S2", "R3_S2", "R2_R3_S2_mean", "R2_R3_S2_sd", "R2_R3_S2_CV", "R2_R3_S2_pct.CV")
+slide2.cv <- cbind(R1_R2_R3_S2.cv[,c(4:7)], R1_R2_S2.cv[,c(3:6)], R1_R3_S2.cv[,c(3:6)], R2_R3_S2.cv[,c(3:6)])
+```
+
+### One-Sample T-Test on the AO differences before transformation
+```{r, echo=FALSE}
+# One-Sample T-Test
+t.test(tdp_df_halo$R1.S2_R2.S2, mu = 0)   #*** p>0.05 - p=0.1032
+t.test(tdp_df_halo$R1.S2_R3.S2, mu = 0)   #*** p>0.05 - p=0.1198
+t.test(tdp_df_halo$R2.S2_R3.S2, mu = 0)   #*** p>0.05 - p=0.7256
+```
+
+### Summary of the CV values before transformation
+```{r, echo=FALSE}
+# Output summary of CV values
+stargazer(slide2.cv, type="text")
+slide2.cv %>% 
+  select(R1_R2_R3_S2_pct.CV, R1_R2_S2_pct.CV, R1_R3_S2_pct.CV, R2_R3_S2_pct.CV) %>% 
+  stargazer(., type = "text")
+```
+
+## Bland Altman Plots Before Transformation
+```{r, echo=FALSE, fig.align="center"}
+blandr.draw( tdp_df_halo$R1_S2 , tdp_df_halo$R2_S2 , plotTitle = 'R1 v. R2 - Slide 2' ,
+ciDisplay = F , ciShading = FALSE )
+blandr.draw( tdp_df_halo$R1_S2 , tdp_df_halo$R3_S2 , plotTitle = 'R1 v. R3 - Slide 2' ,
+ciDisplay = F , ciShading = FALSE )
+blandr.draw( tdp_df_halo$R2_S2 , tdp_df_halo$R3_S2 , plotTitle = 'R2 v. R3 - Slide 2' ,
+ciDisplay = F , ciShading = FALSE )
+```
+
+# TRANSOFRMATION STEP
+```{r, echo=TRUE}
+# Transforms run 2 values to run 1
+tdp_df_halo$R2_S2_t <-  coef(summary(slide2.r1vr2))[2, 1]  * inter2$R2_S2 + coef(summary(slide2.r1vr2))[1, 1]
+# Transforms run 3 values to run 1
+tdp_df_halo$R3_S2_t <-  coef(summary(slide2.r1vr3))[2, 1]  * inter2$R3_S2 + coef(summary(slide2.r1vr3))[1, 1]
+# Transforms run 3 values to run 2
+tdp_df_halo$R2.R3_S2_t <-  coef(summary(slide2.r2vr3))[2, 1]  * inter2$R3_S2 + coef(summary(slide2.r2vr3))[1, 1]
+```
+
+### AFTER TRANSOFRMATION AT8 - tdp TMA 
+```{r, echo=TRUE}
+# Add columns with inter-assay differences AFTER transformation
+# Inter-assay Differences - create new columns for R1vR2, R1vR3, and R2vR3
+    # Slide 2
+tdp_df_halo$R1.S2_R2.S2_t <- tdp_df_halo$R1_S2 - tdp_df_halo$R2_S2_t
+tdp_df_halo$R1.S2_R3.S2_t <- tdp_df_halo$R1_S2 - tdp_df_halo$R3_S2_t
+tdp_df_halo$R2.S2_R3.S2_t <- tdp_df_halo$R2_S2 - tdp_df_halo$R2.R3_S2_t
+
+####     Inter-assay Linear Models   ####
+# Slide 2
+slide2.r1vr2_t <- lm(tdp_df_halo$R1_S2 ~ tdp_df_halo$R2_S2_t)
+summary(slide2.r1vr2_t)
+slide2.r2vr3_t <- lm(tdp_df_halo$R2_S2 ~ tdp_df_halo$R3_S2_t)
+summary(slide2.r2vr3_t)
+slide2.r1vr3_t <- lm(tdp_df_halo$R1_S2 ~ tdp_df_halo$R2.R3_S2_t)
+summary(slide2.r1vr3_t)
+stargazer(slide2.r1vr2_t,slide2.r2vr3_t,slide2.r1vr3_t, type="text", title = "Slide 2 Inter-assay Linear Regression Models")
+
+# CV Calculations Slide 2 - 4 Combinations 
+R1_R2_R3_S2.cv_t <- inter.assay.cv(tdp_df_halo, R1_S2, R2_S2_t, R3_S2_t)
+names(R1_R2_R3_S2.cv_t) <- c("R1_S2", "R2_S2_t", "R3_S2_t", "R1_R2_R3_S2_mean_t", "R1_R2_R3_S2_sd_t", "R1_R2_R3_S2_CV_t", "R1_R2_R3_S2_pct.CV_t")
+R1_R2_S2.cv_t <- inter.assay.cv(tdp_df_halo, R1_S2, R2_S2_t)
+names(R1_R2_S2.cv_t) <- c("R1_S2", "R2_S2_t", "R1_R2_S2_mean_t", "R1_R2_S2_sd_t", "R1_R2_S2_CV_t", "R1_R2_S2_pct.CV_t")
+R1_R3_S2.cv_t <- inter.assay.cv(tdp_df_halo, R1_S2, R3_S2_t)
+names(R1_R3_S2.cv_t) <- c("R1_S2", "R3_S2_t", "R1_R3_S2_mean_t", "R1_R3_S2_sd_t", "R1_R3_S2_CV_t", "R1_R3_S2_pct.CV_t")
+R2_R3_S2.cv_t <- inter.assay.cv(tdp_df_halo, R2_S2, R2.R3_S2_t)
+names(R2_R3_S2.cv_t) <- c("R2_S2", "R3_S2_t", "R2_R3_S2_mean_t", "R2_R3_S2_sd_t", "R2_R3_S2_CV_t", "R2_R3_S2_pct.CV_t")
+
+slide2.cv_t <- cbind(R1_R2_R3_S2.cv_t[,c(4:7)], R1_R2_S2.cv_t[,c(3:6)], R1_R3_S2.cv_t[,c(3:6)], R2_R3_S2.cv_t[,c(3:6)])
+```
+
+### One-Sample T-Test on the transformed AO differences
+```{r,echo=FALSE}
+# One-Sample T-Test on the transformed AO differences
+t.test(tdp_df_halo$R1.S2_R2.S2_t, mu = 0) 
+t.test(tdp_df_halo$R1.S2_R3.S2_t, mu = 0)  
+t.test(tdp_df_halo$R2.S2_R3.S2_t, mu = 0)  
+```
+
+### Summary of the transformed CV values 
+```{r, echo=FALSE}
+# Output summary of CV values
+stargazer(slide2.cv_t, type="text")
+slide2.cv_t %>% 
+  select(R1_R2_R3_S2_pct.CV_t, R1_R2_S2_pct.CV_t, R1_R3_S2_pct.CV_t, R2_R3_S2_pct.CV_t) %>% 
+  stargazer(., type = "text")
+```
+
+
+## Bland Altman Plots After Transformation
+```{r, echo=FALSE, fig.align="center"}
+blandr.draw( tdp_df_halo$R1_S2 , tdp_df_halo$R2_S2_t , plotTitle = 'R1 v. Transformed R2 - Slide 2' ,
+ciDisplay = F , ciShading = FALSE )
+
+blandr.draw( tdp_df_halo$R1_S2 , tdp_df_halo$R3_S2_t , plotTitle = 'R1 v. Transformed R3 - Slide 2' ,
+ciDisplay = F , ciShading = FALSE )
+
+blandr.draw( tdp_df_halo$R2_S2 , tdp_df_halo$R2.R3_S2_t , plotTitle = 'R2 v. Transformed R3 - Slide 2' ,
+ciDisplay = F , ciShading = FALSE )
+```
+## Mean difference untransformed to transformed
+```{r}
+differences <- tdp_df_halo[,c("R1.S2_R2.S2", "R1.S2_R3.S2", "R2.S2_R3.S2", "R1.S2_R2.S2_t", "R1.S2_R3.S2_t", "R2.S2_R3.S2_t")]
+stargazer(differences, type="text")
+```
+
+
+## Run 2 ***before*** transformation to Run 1
+```{r, echo=FALSE, fig.align="center"}
+print(ggMarginal(bland.altman.plot(tdp_df_halo$R1_S2, tdp_df_halo$R2_S2, graph.sys = "ggplot2"),
+           type = "histogram", size=4))
+```
+## Run 2 ***after*** transformation to Run 1
+```{r,echo=FALSE, fig.align="center"}
+print(ggMarginal(bland.altman.plot(tdp_df_halo$R1_S2, tdp_df_halo$R2_S2_t, graph.sys = "ggplot2"),type = "histogram", size=4))
+```
+## Run 3 ***before*** transformation to Run 1
+```{r, echo=FALSE, fig.align="center"}
+print(ggMarginal(bland.altman.plot(tdp_df_halo$R1_S2, tdp_df_halo$R3_S2, graph.sys = "ggplot2"),
+           type = "histogram", size=4))
+```
+## Run 3 ***after*** transformation to Run 1
+```{r,echo=FALSE, fig.align="center"}
+print(ggMarginal(bland.altman.plot(tdp_df_halo$R1_S2, tdp_df_halo$R3_S2_t, graph.sys = "ggplot2"),type = "histogram", size=4))
+```
+## Run 3 ***before*** transformation to Run 2
+```{r, echo=FALSE, fig.align="center"}
+print(ggMarginal(bland.altman.plot(tdp_df_halo$R2_S2, tdp_df_halo$R3_S2, graph.sys = "ggplot2"),
+           type = "histogram", size=4))
+```
+
+## Run 3 ***after*** transformation to Run 2
+```{r,echo=FALSE, fig.align="center"}
+print(ggMarginal(bland.altman.plot(tdp_df_halo$R2_S2, tdp_df_halo$R2.R3_S2_t, graph.sys = "ggplot2"),type = "histogram", size=4))
+```
+
+## CV ***before and after*** transformation
+```{r, echo=FALSE}
+slide2.cv_all <- cbind(slide2.cv, R1_R2_R3_S2.cv_t[,c(4:7)], R1_R2_S2.cv_t[,c(3:6)], R1_R3_S2.cv_t[,c(3:6)], R2_R3_S2.cv_t[,c(3:6)])
+slide2.cv_all %>% 
+  select(R1_R2_R3_S2_pct.CV, R1_R2_R3_S2_pct.CV_t, 
+         R1_R2_S2_pct.CV, R1_R2_S2_pct.CV_t, 
+         R1_R3_S2_pct.CV, R1_R3_S2_pct.CV_t, 
+         R2_R3_S2_pct.CV, R2_R3_S2_pct.CV_t) %>% 
+  stargazer(., type = "text")
+```

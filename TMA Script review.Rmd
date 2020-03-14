@@ -1,0 +1,1253 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+
+x<-dcast(setDT(small.long), OD + perm~ Name, value.var="value")
+
+AO.Avg<-x %>%
+
+  select(seq(from=3, to=ncol(x), by=1)) %>%
+
+  transmute(AO.Avg =(rowSums(.,na.rm = T))/12)
+
+small.long.wide<-cbind(x,AO.Avg)
+
+small.long.avg.ao<-melt(small.long.wide, id.vars = c("OD","perm"))
+
+ 
+
+y<-dcast(setDT(large.long), OD + perm~ Name, value.var="value")
+
+AO.Avg<-y %>%
+
+  select(seq(from=3, to=ncol(y), by=1)) %>%
+
+  transmute(AO.Avg =(rowSums(.,na.rm = T))/12)
+
+large.long.wide<-cbind(y,AO.Avg)
+
+large.long.avg.ao<-melt(large.long.wide, id.vars = c("OD","perm"))
+
+ 
+
+large_interval_graph<- all.r2.s2 %>%
+
+  filter(interval==0.005) %>%
+
+  group_by(perm)  %>%
+
+  ggplot(aes(y=value,x=OD, color=Core, group=Core)) +
+
+  geom_point() +
+
+  geom_line() +
+
+  theme(axis.text.x = element_text(angle = 90)) +
+
+  labs(y="%AO") +
+
+  facet_grid(~perm) +
+
+  labs(title="%AO vs. OD", subtitle = "OD interval = 0.005") +
+
+  theme(plot.title =  element_text(hjust = 0.5),
+
+        plot.subtitle =  element_text(hjust = 0.5))
+
+#sanity check... should match number of rows in r2.s2.p1.large_long
+
+all.r2.s2 %>%
+
+  filter(perm==1) %>%
+
+  filter(interval==0.005) %>%
+
+  count()
+
+ 
+
+all.r2.s2<-rename(all.r2.s2, Core=Name)
+t.all.r2.s2<-all.r2.s2
+all.r2.s2$Core<-as.factor(all.r2.s2$Core)
+all.r2.s2$perm_int<-as.factor(all.r2.s2$perm_int)
+
+all.r2.s2$OD<-as.factor(all.r2.s2$OD)
+
+t.all.r2.s2<-all.r2.s2
+
+ 
+
+ 
+
+empty.cell<- NA
+
+differences<-data.frame(abs(diff(small.long$value)))
+
+small.long$differences <- rbind(c(NA),differences)
+
+x<-small.long$differences
+
+small.long<-cbind(small.long,x)
+
+small.long<-small.long[,-c(7)]
+
+colnames(small.long)<-c("Core","OD","AO","interval","perm","perm_int","Diff")
+
+small.long<-subset(small.long,!small.long$OD=="0.10")
+
+ 
+
+ 
+
+t.all.r2.s2$core2<-t.all.r2.s2$Core
+
+t.all.r2.s2$id<-seq.int(nrow(t.all.r2.s2))
+
+df<-reshape(small.long,idvar=c("OD","interval","perm","perm_int"), timevar = "Core", direction = "wide")
+
+AO.Avg<-df %>%
+
+  select(seq(from=5, to=ncol(df), by=2)) %>%
+
+  transmute(AO.Avg =(rowSums(.,na.rm = T))/12)
+
+ 
+
+Diff.Avg<-df %>%
+
+  select(seq(from=6, to=ncol(df), by=2)) %>%
+
+  transmute(Diff.Avg =(rowSums(.,na.rm = T))/12)
+
+ 
+
+ 
+
+df<- dcast(t.all.r2.s2,OD+interval+perm_int+perm ~ Core, value.var = c("value"))
+
+ 
+
+ 
+
+avgs<-cbind(AO.Avg,Diff.Avg)
+
+small.long<-cbind(df,AO.Avg,Diff.Avg)
+
+ 
+
+x<-dcast(setDT(t.all.r2.s2), OD+interval+perm_int+perm ~ Core, value.var=c("AO","Diff"))
+
+df$Core<- substr(df$variable, 52,58)
+
+ 
+
+ 
+
+ggplot(w,aes(x=OD, y = Diff.B.9)) + geom_point() + geom_line()
+
+ 
+
+z<-reshape(wide_df_avg,
+
+           varying = ao,
+
+           direction = "long",
+
+           idvar="perm_int")
+
+ 
+
+ao<-colnames(df[,c(seq(from=5, to=91, by=2))],prefix = "AO.")
+
+dif<-colnames(df[,c(seq(from=6, to=92, by=2))],prefix = "Diff.")
+
+ 
+
+ 
+
+ 
+
+interval<-wide_df_avg$interval
+
+ 
+
+ao<-colnames(small.long[,c(seq(from=5, to=94), by=2)] ,prefix = "AO.")
+
+ao<- substring(names(ao),4,7)
+
+dif<-colnames(small.long[,c(seq(from=6, to=94), by=2)] ,prefix = "Diff.")
+
+ 
+
+ 
+
+large_interval_graph<- small.long %>%
+
+  filter(interval==0.002) %>%
+
+  group_by(perm)  %>%
+
+  ggplot(aes(y=value,x=OD, color=Name, group=Name)) +
+
+  geom_point() +
+
+  geom_line() +
+
+  theme(axis.text.x = element_text(angle = 90)) +
+
+  labs(y="%AO") +
+
+  facet_grid(~ perm) +
+
+  labs(title="%AO vs. OD", subtitle = "OD interval = 0.002") +
+
+  theme(plot.title =  element_text(hjust = 0.5),
+
+        plot.subtitle =  element_text(hjust = 0.5))
+
+my_breaks <- seq(0.001,0.25,by=5)
+
+my_labs <- interleave(seq(1,10,by=5), "")
+
+################################
+
+ 
+
+avg.r1.s1.p1.small_wide<-read.csv("avg.r1.s1.p1.small_wide.csv")
+
+avg.r1.s1.p2.small_wide<-read.csv("avg.r1.s1.p2.small_wide.csv")
+
+avg.r1.s1.p3.small_wide<-read.csv("avg.r1.s1.p3.small_wide.csv")
+
+avg.r1.s1.p4.small_wide<-read.csv("avg.r1.s1.p4.small_wide.csv")
+
+avg.r1.s1.p5.small_wide<-read.csv("avg.r1.s1.p5.small_wide.csv")
+
+ 
+
+avg.r1.s1.p1.small_wide$perm<- 1
+
+avg.r1.s1.p2.small_wide$perm<- 2
+
+avg.r1.s1.p3.small_wide$perm<- 3
+
+avg.r1.s1.p4.small_wide$perm<- 4
+
+avg.r1.s1.p5.small_wide$perm<- 5
+
+ 
+
+avg.r1.s1.p5.small_wide<- avg.r1.s1.p5.small_wide %>%
+
+  select(OD, AO.Avg, Diff.Avg, perm)
+
+all.r1.s1<-rbind(avg.r1.s1.p1.small_wide,avg.r1.s1.p2.small_wide,avg.r1.s1.p3.small_wide,avg.r1.s1.p4.small_wide,avg.r1.s1.p5.small_wide)
+
+all.r1.s1<-subset(all.r1.s1,!all.r1.s1$OD==0.260)
+
+ 
+
+large.interval<-read_excel("large interval avg and difference avg.xlsx")
+
+small.interval<-read_excel("Small interval avg and difference avg.xlsx")
+
+interval_graph<- all.r1.s1 %>%
+
+  group_by(perm)  %>%
+
+  ggplot(aes(y=AO.Avg,x=OD, color=perm, group=perm)) +
+
+  geom_point() +
+
+  geom_line() +
+
+  theme(axis.text.x = element_text(angle = 90)) +
+
+  labs(y="%AO") +
+
+  facet_grid(~ perm) +
+
+  labs(title="%AO vs. OD", subtitle = "OD interval = 0.002") +
+
+  theme(plot.title =  element_text(hjust = 0.5),
+
+        plot.subtitle =  element_text(hjust = 0.5))
+
+ 
+
+difference.AO.interval_graph<- all.r1.s1 %>%
+
+  group_by(perm)  %>%
+
+  ggplot(aes(y=Diff.Avg,x=OD, color=perm, group=perm)) +
+
+  geom_point() +
+
+  geom_line() +
+
+  theme(axis.text.x = element_text(angle = 90)) +
+
+  labs(y="Difference in %AO") +
+
+  labs(title="Difference in %AO vs. OD", subtitle = "OD interval = 0.002") +
+
+  facet_grid(~ perm) +
+
+  theme(plot.title =  element_text(hjust = 0.5),
+
+        plot.subtitle =  element_text(hjust = 0.5))
+
+lg.interval_graph<- large.interval %>%
+
+  group_by(perm)  %>%
+
+  ggplot(aes(y=AO.Avg,x=OD, color=perm, group=perm)) +
+
+  geom_point() +
+
+  geom_line() +
+
+  theme(axis.text.x = element_text(angle = 90)) +
+
+  labs(y="%AO") +
+
+  facet_grid(~ perm) +
+
+  labs(title="%AO vs. OD", subtitle = "OD interval = 0.005") +
+
+  theme(plot.title =  element_text(hjust = 0.5),
+
+        plot.subtitle =  element_text(hjust = 0.5))
+
+ 
+
+lg.difference.AO.interval_graph<- large.interval %>%
+
+  group_by(perm)  %>%
+
+  ggplot(aes(y=Diff.Avg,x=OD, color=perm, group=perm)) +
+
+  geom_point() +
+
+  geom_line() +
+
+  theme(axis.text.x = element_text(angle = 90)) +
+
+  labs(y="Difference in %AO") +
+
+  facet_grid(~ perm) +
+
+  labs(title="Difference in %AO vs. OD", subtitle = "OD interval = 0.005") +
+
+  theme(plot.title =  element_text(hjust = 0.5),
+
+        plot.subtitle =  element_text(hjust = 0.5))
+
+ 
+
+ 
+
+setwd("U:/FTDC-IrwinLab/TMA Take 2/AT8 TMA results/Run 1 Slide 1")    # Set working directory
+
+ 
+
+r1.s1.p1.small <-read_excel("AT8-DAB-5_29_19.p1.xlsx")  # Small Permutation 1
+
+r1.s1.p2.small <-read_excel("AT8-DAB-5_29_19.p2.xlsx")  # Small Permutation 2
+
+r1.s1.p3.small <-read_excel("AT8-DAB-5_29_19.p3.xlsx")  # Small Permutation 3
+
+r1.s1.p4.small <-read_excel("AT8-DAB-5_29_19.p4.xlsx")  # Small Permutation 4
+
+r1.s1.p5.small <-read_excel("AT8-DAB-5_29_19.p5.xlsx")  # Small Permutation 5
+
+ 
+
+ 
+
+ 
+
+#       Create function to clean TMA core permutation data to yield coreID, OD, and %AO
+
+core_permutation_cleaning_small<-function(df){
+
+  cores <- df[,c(1)]                   # Creates dataframe with containing Core Names
+
+  df<- df[,seq(12, ncol(df),6)]  # removes unnessary columns - only keeps %AO of ROI
+
+  df<-cbind(cores,df) # Binds column with names
+
+  df<-reshape2::melt(df, idvars = "Name")
+
+  df$variable<-as.character(df$variable)
+
+  df$OD<- substr(df$variable, 52,58)
+
+  df$OD<-gsub("[)]","0",df$OD)
+
+  df<- df[order(df$Name,df$OD),]
+
+  df<-df[,-c(2)]
+
+  df<- df[,c("Name","OD","value")]
+
+ 
+
+  
+
+  return(df)
+
+ 
+
+}
+
+ 
+
+ 
+
+ 
+
+r1.s1.p1.small_long<-core_permutation_cleaning_small(r1.s1.p1.small)
+
+r1.s1.p2.small_long<-core_permutation_cleaning_small(r1.s1.p2.small)
+
+r1.s1.p3.small_long<-core_permutation_cleaning_small(r1.s1.p3.small)
+
+r1.s1.p4.small_long<-core_permutation_cleaning_small(r1.s1.p4.small)
+
+r1.s1.p5.small_long<-core_permutation_cleaning_small(r1.s1.p5.small)
+
+ 
+
+ 
+
+######################
+
+# Create plot of %AO by OD Colored by Core
+
+r2.s2.lg_long<- ggplot(r2.s2.p1.large_long, aes(y=value, x=OD, color=Name, group=Name)) +
+
+  geom_point(aes(color = Name)) +
+
+  geom_line()
+
+r2.s2.lg_long + theme(axis.text.x = element_text(angle = 45)) +
+
+  labs(y="%AO")+
+
+  facet_grid(, group=Name)
+
+ 
+
+ 
+
+graph_AO_OD<- function(df){
+
+  run.slide.p.sz.dir<- ggplot(df, aes(y=value, x=OD, color=Name, group=Name)) +
+
+  geom_point(aes(color = Name)) +
+
+  geom_line()
+
+run.slide.p.sz.dir + theme(axis.text.x = element_text(angle = 45)) +
+
+  labs(y="%AO")
+
+}
+
+ 
+
+recursive_AO_differences<-function(df){
+
+  empty.cell<- NA
+
+  differences<-data.frame(abs(diff(df$value)))
+
+  df$differences <- rbind(c(NA),differences)
+
+  x<-df$differences
+
+  df<-cbind(df,x)
+
+  df<-df[,-c(4)]
+
+  colnames(df)<-c("Core","OD","AO","Diff")
+
+  df<-reshape(df,idvar="OD", timevar = "Core", direction = "wide")
+
+  df<-data.frame(df[-c(1),])
+
+  return(df)
+
+}
+
+ 
+
+ 
+
+r1.s1.p1.small_wide<-recursive_AO_differences(r1.s1.p1.small_long)
+
+r1.s1.p2.small_wide<-recursive_AO_differences(r1.s1.p2.small_long)
+
+r1.s1.p3.small_wide<-recursive_AO_differences(r1.s1.p3.small_long)
+
+r1.s1.p4.small_wide<-recursive_AO_differences(r1.s1.p4.small_long)
+
+r1.s1.p5.small_wide<-recursive_AO_differences(r1.s1.p5.small_long)
+
+ 
+
+averaging_AO_and_differences<-function(wide_df){
+
+AO.Avg<-wide_df %>%
+
+    select(seq(from=2, to=ncol(.), by=2)) %>%
+
+    transmute(AO.Avg =(rowSums(.))/12)
+
+Diff.Avg<-wide_df %>%
+
+  select(seq(from=3, to=ncol(.), by=2)) %>%
+
+  transmute(Diff.Avg =(rowSums(.))/12)
+
+avgs<-cbind(AO.Avg,Diff.Avg)
+
+wide_df_avg<-cbind(wide_df,avgs)
+
+ 
+
+ 
+
+return(wide_df_avg)
+
+ 
+
+}
+
+ 
+
+ 
+
+ 
+
+avg.r1.s1.p1.small_wide<-averaging_AO_and_differences(r1.s1.p1.small_wide)
+
+avg.r1.s1.p2.small_wide<-averaging_AO_and_differences(r1.s1.p2.small_wide)
+
+avg.r1.s1.p3.small_wide<-averaging_AO_and_differences(r1.s1.p3.small_wide)
+
+avg.r1.s1.p4.small_wide<-averaging_AO_and_differences(r1.s1.p4.small_wide)
+
+avg.r1.s1.p5.small_wide<-averaging_AO_and_differences(r1.s1.p5.small_wide)
+
+avg.r1.s1.p5.small_wide<-avg.r1.s1.p5.small_wide[2:75,]
+
+write.csv(avg.r1.s1.p1.small_wide, "avg.r1.s1.p1.small_wide.csv" )
+
+write.csv(avg.r1.s1.p2.small_wide, "avg.r1.s1.p2.small_wide.csv" )
+
+write.csv(avg.r1.s1.p3.small_wide, "avg.r1.s1.p3.small_wide.csv" )
+
+write.csv(avg.r1.s1.p4.small_wide, "avg.r1.s1.p4.small_wide.csv" )
+
+write.csv(avg.r1.s1.p5.small_wide, "avg.r1.s1.p5.small_wide.csv" )
+
+ 
+
+all.r1.s2<-bind(avg.r1.s1.p1.small_wide,avg.r1.s1.p2.small_wide,avg.r1.s1.p3.small_wide,avg.r1.s1.p4.small_wide,avg.r1.s1.p5.small_wide)
+
+ 
+
+ 
+
+ 
+
+library(dplyr)
+
+library(readxl)
+
+library(reshape2)     # Data reshaping
+
+library(ggplot2)      # Data Visualization
+
+ 
+
+# Script takes QuPath TMA Random Core permutation analysis and compares the OD intervals. All RGB values were calculated from the Avg across 12 cores. Only OD parameter differs
+
+#######     Comparing OD intervals (0.005 vs. 0.002) in Run 2 Slide 2       ########
+
+   #####  r2=Run 2; s2=Slide 2; small=0.002 OD; large=0.005 OD; P1=permutation 1;   ##### 
+
+#         LARGE PERMUTATION DATA IMPORT
+
+setwd("U:/FTDC-IrwinLab/TMA Take 2/AT8 TMA results/Run 2 Slide 2")    # Set working directory
+
+r2.s2.p1.large <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_1_0.005_inter_AVG.xlsx")  # Large Permutation 1
+
+r2.s2.p2.large <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_2_0.005_inter_AVG.xlsx")  # Large Permutation 2
+
+r2.s2.p3.large <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_3_0.005_inter_AVG.xlsx")  # Large Permutation 3
+
+r2.s2.p4.large <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_4_0.005_inter_AVG.xlsx")  # Large Permutation 4
+
+r2.s2.p5.large <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_5_0.005_inter_AVG.xlsx")  # Large Permutation 5
+
+ 
+
+#         SMALL PERMUTATION DATA IMPORT
+
+r2.s2.p1.small <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_1_AVG.xlsx")  # Small Permutation 1
+
+r2.s2.p2.small <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_2_AVG.xlsx")  # Small Permutation 2
+
+r2.s2.p3.small <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_3_AVG.xlsx")  # Small Permutation 3
+
+r2.s2.p4.small <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_4_AVG.xlsx")  # Small Permutation 4
+
+r2.s2.p5.small <-read_excel("AT8-DAB-6_3_19_11.06.2019_11.27.57.mrxs_permutation_5_AVG.xlsx")  # Small Permutation 5
+
+ 
+
+ 
+
+core_permutation_cleaning_large<-function(df){
+
+  # Due to the QuPath Output, the 0.005 OD is not sequential with 0.002, therefore we needed to separate the even and odd ODs... since the smaller interval of 0.002 did not have 0.005 ODs a new function is created to be used on the large interval datasets
+
+ 
+
+  cores <- df[,c(1)]                   # Creates dataframe with containing Core Names
+
+  even <- df[,seq(from=12, to=457,30)]  # separate columns with ODs that are even numbers
+
+  odd<-df[,seq(from=468, to=ncol(df), 6)]   # separate columns with ODs that are odd numbers
+
+  df<-cbind(cores,even,odd) # Binds even and odd ODs with names
+
+  df<-reshape2::melt(df, idvars = "Name")
+
+  df$variable<-as.character(df$variable)
+
+  df$OD<- substr(df$variable, 52,58)
+
+  df$OD<-gsub("[)]","0",df$OD)
+
+  df<- df[order(df$Name,df$OD),]
+
+  df<-df[,-c(2)]
+
+  df<- df[,c("Name","OD","value")]
+
+ 
+
+  
+
+  return(df)
+
+}
+
+ 
+
+ 
+
+#       Create function to clean TMA core permutation data to yield coreID, OD, and %AO
+
+core_permutation_cleaning_small<-function(df){
+
+  cores <- df[,c(1)]                   # Creates dataframe with containing Core Names
+
+  df<- df[,seq(12, ncol(df),6)]  # removes unnessary columns - only keeps %AO of ROI
+
+  df<-cbind(cores,df) # Binds column with names
+
+  df<-reshape2::melt(df, idvars = "Name")
+
+  df$variable<-as.character(df$variable)
+
+  df$OD<- substr(df$variable, 52,58)
+
+  df$OD<-gsub("[)]","0",df$OD)
+
+  df<- df[order(df$Name,df$OD),]
+
+  df<-df[,-c(2)]
+
+  df<- df[,c("Name","OD","value")]
+
+ 
+
+  
+
+  return(df)
+
+ 
+
+}
+
+ 
+
+ 
+
+r2.s2.p1.large_long<-core_permutation_cleaning_large(r2.s2.p1.large)
+
+r2.s2.p2.large_long<-core_permutation_cleaning_large(r2.s2.p2.large)
+
+r2.s2.p3.large_long<-core_permutation_cleaning_large(r2.s2.p3.large)
+
+r2.s2.p4.large_long<-core_permutation_cleaning_large(r2.s2.p4.large)
+
+r2.s2.p5.large_long<-core_permutation_cleaning_large(r2.s2.p5.large)
+
+r2.s2.p1.small_long<-core_permutation_cleaning_small(r2.s2.p1.small)
+
+r2.s2.p2.small_long<-core_permutation_cleaning_small(r2.s2.p2.small)
+
+r2.s2.p3.small_long<-core_permutation_cleaning_small(r2.s2.p3.small)
+
+r2.s2.p4.small_long<-core_permutation_cleaning_small(r2.s2.p4.small)
+
+r2.s2.p5.small_long<-core_permutation_cleaning_small(r2.s2.p5.small)
+
+ 
+
+ 
+
+######################
+
+# Create plot of %AO by OD Colored by Core
+
+r2.s2.lg_long<- ggplot(r2.s2.p1.large_long, aes(y=value, x=OD, color=Name, group=Name)) +
+
+  geom_point(aes(color = Name)) +
+
+  geom_line()
+
+r2.s2.lg_long + theme(axis.text.x = element_text(angle = 45)) +
+
+  labs(y="%AO")+
+
+  facet_grid(, group=Name)
+
+ 
+
+ 
+
+graph_AO_OD<- function(df){
+
+  run.slide.p.sz.dir<- ggplot(df, aes(y=value, x=OD, color=Name, group=Name)) +
+
+  geom_point(aes(color = Name)) +
+
+  geom_line()
+
+run.slide.p.sz.dir + theme(axis.text.x = element_text(angle = 45)) +
+
+  labs(y="%AO")
+
+}
+
+ 
+
+#X + facet_grid(Name ~ .)
+
+        #write.csv(long_book.final, "longbookfinal.csv")
+
+        # Recursively calculate differences of %AO values based on ODs
+
+       #empty.cell<- NA
+
+        #differences<-data.frame(abs(diff(long_book.final$value)))
+
+        #differences<- cbind(data.frame(empty.cell),differences)
+
+        #differences<-rbind(c(NA),differences)
+
+        #long_book.final$differences <- differences$abs.diff.long_book.final.value..
+
+        #long_book.final$OD<-as.numeric(long_book.final$OD)
+
+ 
+
+recursive_AO_differences<-function(df){
+
+  empty.cell<- NA
+
+  differences<-data.frame(abs(diff(df$value)))
+
+  df$differences <- rbind(c(NA),differences)
+
+  x<-df$differences
+
+  df<-cbind(df,x)
+
+  df<-df[,-c(4)]
+
+  colnames(df)<-c("Core","OD","AO","Diff")
+
+  df<-reshape(df,idvar="OD", timevar = "Core", direction = "wide")
+
+  df<-data.frame(df[-c(1),])
+
+  return(df)
+
+}
+
+ 
+
+r2.s2.p1.large_wide<-recursive_AO_differences(r2.s2.p1.large_long)
+
+r2.s2.p2.large_wide<-recursive_AO_differences(r2.s2.p2.large_long)
+
+r2.s2.p3.large_wide<-recursive_AO_differences(r2.s2.p3.large_long)
+
+r2.s2.p4.large_wide<-recursive_AO_differences(r2.s2.p4.large_long)
+
+r2.s2.p5.large_wide<-recursive_AO_differences(r2.s2.p5.large_long)
+
+r2.s2.p1.small_wide<-recursive_AO_differences(r2.s2.p1.small_long)
+
+r2.s2.p2.small_wide<-recursive_AO_differences(r2.s2.p2.small_long)
+
+r2.s2.p3.small_wide<-recursive_AO_differences(r2.s2.p3.small_long)
+
+r2.s2.p4.small_wide<-recursive_AO_differences(r2.s2.p4.small_long)
+
+r2.s2.p5.small_wide<-recursive_AO_differences(r2.s2.p5.small_long)
+
+ 
+
+averaging_AO_and_differences<-function(wide_df){
+
+AO.Avg<-wide_df %>%
+
+    select(seq(from=2, to=ncol(.), by=2)) %>%
+
+    transmute(AO.Avg =(rowSums(.))/12)
+
+Diff.Avg<-wide_df %>%
+
+  select(seq(from=3, to=ncol(.), by=2)) %>%
+
+  transmute(Diff.Avg =(rowSums(.))/12)
+
+avgs<-cbind(AO.Avg,Diff.Avg)
+
+wide_df_avg<-cbind(wide_df,avgs)
+
+ 
+
+ 
+
+return(wide_df_avg)
+
+ 
+
+}
+
+ 
+
+ 
+
+ 
+
+avg.r2.s2.p1.large_wide<-averaging_AO_and_differences(r2.s2.p1.large_wide)
+
+#write.csv(w,"r2.s2.p1.large_wide.csv")
+
+#z<-averaging_AO_and_differences(r2.s2.p2.large_wide)
+
+#write.csv(w,"r2.s2.p2.large_wide.csv")
+
+#w<-averaging_AO_and_differences(r2.s2.p3.large_wide)
+
+#write.csv(w,"r2.s2.p3.large_wide.csv")
+
+#w<-averaging_AO_and_differences(r2.s2.p4.large_wide)
+
+#write.csv(w,"r2.s2.p4.large_wide.csv")
+
+#w<-averaging_AO_and_differences(r2.s2.p5.large_wide)
+
+#write.csv(w,"r2.s2.p5.large_wide.csv")
+
+#w<-averaging_AO_and_differences(r2.s2.p1.small_wide)
+
+#write.csv(w,"r2.s2.p1.small_wide.csv")
+
+#w<-averaging_AO_and_differences(r2.s2.p2.small_wide)
+
+#write.csv(w,"r2.s2.p2.small_wide.csv")
+
+#w<-averaging_AO_and_differences(r2.s2.p3.small_wide)
+
+#write.csv(w,"r2.s2.p3.small_wide.csv")
+
+#w<-averaging_AO_and_differences(r2.s2.p4.small_wide)
+
+#write.csv(w,"r2.s2.p4.small_wide.csv")
+
+#w<-averaging_AO_and_differences(r2.s2.p5.small_wide)
+
+#write.csv(w,"r2.s2.p5.small_wide.csv")
+
+ 
+
+ 
+
+ 
+
+ 
+
+r2.s2.p1.large_long$interval<-c("0.005")
+
+r2.s2.p1.large_long$perm<-c("1")
+
+r2.s2.p1.large_long$perm_int<-c("1_0.005")
+
+r2.s2.p2.large_long$interval<-c("0.005")
+
+r2.s2.p2.large_long$perm<-c("2")
+
+r2.s2.p2.large_long$perm_int<-c("2_0.005")
+
+r2.s2.p3.large_long$interval<-c("0.005")
+
+r2.s2.p3.large_long$perm<-c("3")
+
+r2.s2.p3.large_long$perm_int<-c("3_0.005")
+
+r2.s2.p4.large_long$interval<-c("0.005")
+
+r2.s2.p4.large_long$perm<-c("4")
+
+r2.s2.p4.large_long$perm_int<-c("4_0.005")
+
+r2.s2.p5.large_long$interval<-c("0.005")
+
+r2.s2.p5.large_long$perm<-c("5")
+
+r2.s2.p5.large_long$perm_int<-c("5_0.005")
+
+r2.s2.p1.small_long$interval<-c("0.002")
+
+r2.s2.p1.small_long$perm<-c("1")
+
+r2.s2.p1.small_long$perm_int<-c("1_0.002")
+
+r2.s2.p2.small_long$interval<-c("0.002")
+
+r2.s2.p2.small_long$perm<-c("2")
+
+r2.s2.p2.small_long$perm_int<-c("2_0.002")
+
+r2.s2.p3.small_long$interval<-c("0.002")
+
+r2.s2.p3.small_long$perm<-c("3")
+
+r2.s2.p3.small_long$perm_int<-c("3_0.002")
+
+r2.s2.p4.small_long$interval<-c("0.002")
+
+r2.s2.p4.small_long$perm<-c("4")
+
+r2.s2.p4.small_long$perm_int<-c("4_0.002")
+
+r2.s2.p5.small_long$interval<-c("0.002")
+
+r2.s2.p5.small_long$perm<-c("5")
+
+r2.s2.p5.small_long$perm_int<-c("5_0.002")
+
+ 
+
+ 
+
+all.r2.s2<-rbind(r2.s2.p1.large_long,r2.s2.p2.large_long,r2.s2.p3.large_long,r2.s2.p4.large_long,r2.s2.p5.large_long,r2.s2.p1.small_long,r2.s2.p2.small_long,r2.s2.p3.small_long,r2.s2.p4.small_long,r2.s2.p5.small_long)
+
+ 
+
+#sanity check... should match number of rows in r2.s2.p1.large_long
+
+all.r2.s2 %>%
+
+  filter(perm==1) %>%
+
+  filter(interval==0.005) %>%
+
+  count()
+
+ 
+
+all.r2.s2<-rename(all.r2.s2, Core=Name)
+
+t.all.r2.s2<-all.r2.s2
+
+t.all.r2.s2$Core<-as.factor(t.all.r2.s2$Core)
+
+t.all.r2.s2$perm_int<-as.factor(t.all.r2.s2$perm_int)
+
+t.all.r2.s2$OD<-as.factor(t.all.r2.s2$OD)
+
+ 
+
+            large_interval_graph<- all.r2.s2 %>%
+
+              filter(interval==0.005) %>%
+
+              group_by(perm)  %>%
+
+              ggplot(aes(y=value,x=OD, color=Core, group=Core)) +
+
+              geom_point() +
+
+              geom_line() +
+
+              theme(axis.text.x = element_text(angle = 90)) +
+
+              labs(y="%AO") +
+
+              facet_grid(~perm) +
+
+              labs(title="%AO vs. OD", subtitle = "OD interval = 0.005") +
+
+              theme(plot.title =  element_text(hjust = 0.5),
+
+                    plot.subtitle =  element_text(hjust = 0.5))
+
+t.all.r2.s2<-all.r2.s2
+
+empty.cell<- NA
+
+  differences<-data.frame(abs(diff(t.all.r2.s2$value)))
+
+  t.all.r2.s2$differences <- rbind(c(NA),differences)
+
+  x<-t.all.r2.s2$differences
+
+  t.all.r2.s2<-cbind(t.all.r2.s2,x)
+
+  t.all.r2.s2<-t.all.r2.s2[,-c(7)]
+
+  colnames(t.all.r2.s2)<-c("Core","OD","value","interval","perm","perm_int","Diff")
+
+  AO<-t.all.r2.s2[,c(1:6)]
+
+  t.all.r2.s2<-subset(t.all.r2.s2,!t.all.r2.s2$OD=="0.10")
+
+ 
+
+   
+
+t.all.r2.s2$core2<-t.all.r2.s2$Core
+
+t.all.r2.s2$id<-seq.int(nrow(t.all.r2.s2))
+
+  df<-reshape(t.all.r2.s2,idvar=c("OD","interval","perm","perm_int"), timevar = "Core", direction = "wide")
+
+AO.Avg<-df %>%
+
+  select(seq(from=5, to=ncol(df), by=2)) %>%
+
+  transmute(AO.Avg =(rowSums(.,na.rm = T))/12)
+
+ 
+
+Diff.Avg<-df %>%
+
+  select(seq(from=6, to=ncol(df), by=4)) %>%
+
+  transmute(Diff.Avg =(rowSums(.,na.rm = T))/12)
+
+ 
+
+ 
+
+df<- dcast(t.all.r2.s2,OD+interval+perm_int+perm ~ Core, value.var = c("value"))
+
+ 
+
+ 
+
+avgs<-cbind(AO.Avg,Diff.Avg)
+
+wide_df_avg<-cbind(df,AO.Avg)
+
+ 
+
+x<-dcast(setDT(t.all.r2.s2), OD+interval+perm_int+perm ~ Core, value.var=c("AO","Diff"))
+
+df$Core<- substr(df$variable, 52,58)
+
+ 
+
+ 
+
+ggplot(w,aes(x=OD, y = Diff.B.9)) + geom_point() + geom_line()
+
+ 
+
+z<-reshape(wide_df_avg,
+
+             varying = ao,
+
+           direction = "long",
+
+           idvar="perm_int")
+
+ 
+
+ao<-colnames(df[,c(seq(from=4, to=ncol(df), by=3))],prefix = "value.")
+
+dif<-colnames(df[,c(seq(from=5, to=ncol(df), by=3))],prefix = "Diff.")
+
+core2<-colnames(df[,c(seq(from=6, to=ncol(df), by=4))],prefix = "core2")
+
+id<-colnames(df[,c(seq(from=6, to=ncol(df), by=4))],prefix = "core2")
+
+ 
+
+ 
+
+interval<-wide_df_avg$interval
+
+ 
+
+ao<-colnames(small_wide[,c(seq(from=3, to=26), by=2)] ,prefix = "AO.")
+
+dif<-colnames(small_wide[,c(seq(from=4, to=26), by=2)] ,prefix = "Diff.")
+
+ 
+
+ 
+
+ 
+
+ 
+
+small_wide<-read.csv("r2.s2.p5.small_wide.csv")
+
+reshape(small_wide,
+
+        varying = c(ao, dif),
+
+        direction = "long",
+
+        idvar = "X")
+
+ 
+
+ 
+
+a<-dcast(all.r2.s2,OD+Core~perm_int,value.var="value")
+
+AO.Avg<-a %>%
+
+  select(seq(from=4, to=ncol(a), by=21)) %>%
+
+  transmute(AO.Avg =(rowSums(.,na.rm = T))/12)
+```
+
+
+```{r}
+sd(tau_df_halo$R1.S1..AO, na.rm = TRUE)
+sd(tau_df_halo$R1.S2..AO, na.rm = TRUE)
+sd(tau_df_halo$R2.S1..AO, na.rm = TRUE)
+sd(tau_df_halo$R2.S2..AO, na.rm = TRUE)
+sd(tau_df_halo$R2.S3..AO, na.rm = TRUE)
+sd(tau_df_halo$R3.S1..AO, na.rm = TRUE)
+sd(tau_df_halo$R3.S2..AO, na.rm = TRUE)
+sd(tau_df_halo$R3.S3..AO, na.rm = TRUE)
+
+# Bland-Altman analysis comparing SB1 vs. SB2 data (mean diff, one-sample t-test with mu = 0) in control dataset.
+tau_df_halo$R1.S1_R1.S2 <- tau_df_halo$R1.S1..AO - tau_df_halo$R1.S2..AO
+tau_df_halo$R1.S1_R1.S2 <- tau_df_halo$R1.S1..AO - tau_df_halo$R2.S1..AO
+tau_df_halo$R1.S1_R2.S2 <- tau_df_halo$R1.S1..AO - tau_df_halo$R2.S2..AO
+tau_df_halo$R1.S1_R2.S3 <- tau_df_halo$R1.S1..AO - tau_df_halo$R2.S3..AO
+tau_df_halo$R1.S1_R3.S1 <- tau_df_halo$R1.S1..AO - tau_df_halo$R3.S1..AO
+tau_df_halo$R1.S1_R3.S2 <- tau_df_halo$R1.S1..AO - tau_df_halo$R3.S2..AO
+tau_df_halo$R1.S1_R3.S3 <- tau_df_halo$R1.S1..AO - tau_df_halo$R3.S3..AO
+tau_df_halo$R1.S2_R2.S1 <- tau_df_halo$R1.S2..AO - tau_df_halo$R2.S1..AO
+tau_df_halo$R1.S2_R2.S2 <- tau_df_halo$R1.S2..AO - tau_df_halo$R2.S2..AO
+tau_df_halo$R1.S2_R2.S3 <- tau_df_halo$R1.S2..AO - tau_df_halo$R2.S3..AO
+tau_df_halo$R1.S2_R3.S1 <- tau_df_halo$R1.S2..AO - tau_df_halo$R3.S1..AO
+tau_df_halo$R1.S2_R3.S2 <- tau_df_halo$R1.S2..AO - tau_df_halo$R3.S2..AO
+tau_df_halo$R1.S2_R3.S3 <- tau_df_halo$R1.S2..AO - tau_df_halo$R3.S3..AO
+tau_df_halo$R2.S1_R2.S2 <- tau_df_halo$R2.S1..AO - tau_df_halo$R2.S2..AO
+tau_df_halo$R2.S1_R2.S3 <- tau_df_halo$R2.S1..AO - tau_df_halo$R2.S3..AO
+tau_df_halo$R2.S1_R3.S1 <- tau_df_halo$R2.S1..AO - tau_df_halo$R3.S1..AO
+tau_df_halo$R2.S1_R3.S2 <- tau_df_halo$R2.S1..AO - tau_df_halo$R3.S2..AO
+tau_df_halo$R2.S1_R3.S3 <- tau_df_halo$R2.S1..AO - tau_df_halo$R3.S3..AO
+tau_df_halo$R2.S2_R2.S3 <- tau_df_halo$R2.S2..AO - tau_df_halo$R2.S3..AO
+tau_df_halo$R2.S2_R3.S1 <- tau_df_halo$R2.S2..AO - tau_df_halo$R3.S1..AO
+tau_df_halo$R2.S2_R3.S2 <- tau_df_halo$R2.S2..AO - tau_df_halo$R3.S2..AO
+tau_df_halo$R2.S2_R3.S3 <- tau_df_halo$R2.S2..AO - tau_df_halo$R3.S3..AO
+tau_df_halo$R2.S3_R2.S1 <- tau_df_halo$R2.S3..AO - tau_df_halo$R3.S1..AO
+tau_df_halo$R2.S3_R3.S2 <- tau_df_halo$R2.S3..AO - tau_df_halo$R3.S2..AO
+tau_df_halo$R2.S3_R3.S3 <- tau_df_halo$R2.S3..AO - tau_df_halo$R3.S3..AO
+tau_df_halo$R3.S1_R3.S1 <- tau_df_halo$R3.S1..AO - tau_df_halo$R3.S1..AO
+tau_df_halo$R3.S1_R3.S2 <- tau_df_halo$R3.S1..AO - tau_df_halo$R3.S2..AO
+tau_df_halo$R3.S1_R3.S3 <- tau_df_halo$R3.S2..AO - tau_df_halo$R3.S3..AO
+ 
+all.diff<-rbind(R1.S1_R1.S2, R1.S1_R2.S2, R1.S1_R2.S3,R1.S1_R3.S1, R1.S1_R3.S2, R1.S1_R3.S3, R1.S2_R2.S1, R1.S2_R2.S2, R1.S2_R2.S3, R1.S2_R3.S1, R1.S2_R3.S2, R1.S2_R3.S3, R2.S1_R2.S2, R2.S1_R2.S3, R2.S1_R3.S1, R2.S1_R3.S2, R2.S1_R3.S3, R2.S2_R2.S3, R2.S2_R3.S1, R2.S2_R3.S2, R2.S2_R3.S3, R2.S3_R2.S1, R2.S3_R3.S2, R2.S3_R3.S3, R3.S1_R3.S1, R3.S1_R3.S2, R3.S1_R3.S3)
+
+
+differences <- rowMeans(all.diff,na.rm = T)
+      mean(R1.S1_R1.S2, na.rm = T)   #confirm accurate values
+
+differences <-cbind(rowSds(all.diff, na.rm=T), differences)
+
+t.test(R1.S1_R1.S2, mu = 0)
+t.test(R1.S1_R2.S2, mu = 0)
+t.test(R1.S1_R2.S3, mu = 0)
+t.test(R1.S1_R3.S1, mu = 0)
+t.test(R1.S1_R3.S2, mu = 0)
+t.test(R1.S1_R3.S3, mu = 0)
+t.test(R1.S2_R2.S1, mu = 0)   #*** p>0.05 - p=0.107
+t.test(R1.S2_R2.S2, mu = 0)   #*** p>0.05 - p=0.107
+t.test(R1.S2_R2.S3, mu = 0)   #*** p>0.05 - p=0.107
+t.test(R1.S2_R3.S1, mu = 0)   #*** p>0.05 - p=0.107
+t.test(R1.S2_R3.S2, mu = 0)   #*** p>0.05 - p=0.1198
+t.test(R1.S2_R3.S3, mu = 0)   #*** p>0.05 - p=0.3516
+t.test(R2.S1_R2.S2, mu = 0)   #*** p>0.05 - p=0.987
+t.test(R2.S1_R2.S3, mu = 0)
+t.test(R2.S1_R3.S1, mu = 0)   #*** p>0.05 - p=0.987
+t.test(R2.S1_R3.S2, mu = 0)   #*** p>0.05 - p=0.7565
+t.test(R2.S1_R3.S3, mu = 0)   #*** p>0.05 - p=0.07309
+t.test(R2.S2_R2.S3, mu = 0)
+t.test(R2.S2_R3.S1, mu = 0)   #*** p=NA?
+t.test(R2.S2_R3.S2, mu = 0)   #*** p>0.05 - p=0.7256
+t.test(R2.S2_R3.S3, mu = 0)   #*** p>0.05 - p=0.09507
+t.test(R2.S3_R2.S1, mu = 0)
+t.test(R2.S3_R3.S2, mu = 0)   #*** p>0.05 - p=0.111
+t.test(R2.S3_R3.S3, mu = 0)   #*** p>0.05 - p=0.9662
+t.test(R3.S1_R3.S1, mu = 0)   #*** p=NA
+t.test(R3.S1_R3.S2, mu = 0)   #*** p>0.05 - p=0.7256
+t.test(R3.S1_R3.S3, mu = 0)   #*** p>0.05 - p=0.06847
+ 
+ 
+# Linear model to obtain linear trends (R squared) and transformation factors for subsequent transformation. Below also the script for a linear plot using ggplot. 
+Reg <- lm(tau_df_halo$R1.S2..AO ~ tau_df_halo$R3.S2..AO)
+summary(Reg)
+
+
+ggplot(data = tau_df_halo, aes(x = R2.S1..AO, y = R3.S1..AO)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red") + xlab("SB2 ln %AO") + ylab("SB1 ln %AO") + ggtitle("GM linear plot") + theme(axis.title = element_text(size = 18), axis.text = element_text(size = 16), plot.title = element_text(size = 20, face = "bold"), legend.text = element_text(size = 18), legend.title = element_text(size = 20))
+
+ggsave("ScatterGM.png", width = 6, height = 5)
+
+cor(tau_df_halo$R1.S2..AO, tau_df_halo$R2.S1..AO, use = "complete.obs")
+
+
+# Apply the transformation on SB2-stained data in the new dataset "data". We obtain a new variable which contains transformed SB2 data (tSB2).
+
+data$GM_tSB2 <-  coef(summary(RegGM))[2, 1]  * data$GM_SB2 + coef(summary(RegGM))[1, 1]
+
+data$WM_tSB2 <- coef(summary(RegWM))[2, 1] * data$WM_SB2 + coef(summary(RegWM))[1, 1]
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file).

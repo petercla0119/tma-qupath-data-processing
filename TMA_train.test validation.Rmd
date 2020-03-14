@@ -1,0 +1,483 @@
+---
+title: "TMA Custom Alg."
+author: "Claire S. Peterson"
+date: "11/8/2019"
+output: pdf_document
+---
+
+
+```{r setup, include=FALSE, echo=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+
+library(ggplot2)  #data visualization
+library(BlandAltmanLeh)
+library(readxl)   #read excel files
+library(stargazer)  #print out clean tables
+library(matrixStats)
+library(corrplot)
+library(gridExtra)
+library(dplyr)
+library(ggExtra)
+library(blandr)
+library(tinytex)
+library(ggpubr)
+library(broom)
+library(purrr)
+# Create function for calculating correlations and outputting lower triangle correlation matrices ####
+lower.tri.cor.matrix <- function(df){
+  cor.matrix<-round(cor(df, use = "complete.obs"), 3)
+  cor.matrix[upper.tri(cor.matrix)]<-""
+  cor.matrix<-as.data.frame(cor.matrix)
+  cor.matrix
+  
+  return(cor.matrix)
+}
+#####     CV VALUES    #####
+inter.assay.cv <- function(df, ...){
+  grp_vars <- quos(...)
+  selected.cols <- df %>%
+    select(!!!grp_vars)
+  dat.as.matrix <- as.matrix(selected.cols)
+  selected.cols$mean <- rowMeans(selected.cols,na.rm = T)
+  selected.cols$sd <- rowSds(dat.as.matrix,na.rm = T)
+  selected.cols <- selected.cols %>%
+    mutate(CV = sd/mean,
+           pct.CV = (sd/mean)*100)
+  
+  return(selected.cols)
+}
+
+format.t.test <- function(df){
+ df <- df[c("estimate", "p.value", "parameter")]
+df$comparison <- c("ln training","raw training","ln testing", "raw testing","ln fixed training","raw fixed training","ln fixed testing", "raw fixed testing")
+df <- df[c("comparison", "estimate", "p.value", "parameter")]
+colnames(df)[colnames(df)=="parameter"] <- "DF" 
+return(df)
+}
+#setwd("~/Desktop/Work-IrwinLab/TMA Scripts and data/TMA Data and scripts 8_21")
+
+setwd("U:/TMA/Custom Algorithm - Tau")
+
+tau_df_halo_raw <- read.csv("U:/TMA/Custom Algorithm - Tau/serial slides 12 and 13 clean.csv")   # Import your dataset
+
+tau_df_halo_raw_with_cores <- tau_df_halo_raw
+
+```
+
+
+```{r}
+tau_df_halo_raw$difference = tau_df_halo_raw$slide12.ao - tau_df_halo_raw$slide13.ao
+large_differences <- tau_df_halo_raw %>%
+  select(slide12, difference) %>%
+  filter(difference>10)
+
+train <- large_differences[split, ]
+test <- alldat[-split, ]
+subset (tau_df_halo_raw$slide12  large_differences$slide12)
+
+```
+
+
+
+### **Sampling with replacement (train n=94, test n=95)***
+
+####** ln Transform Data**
+```{r, echo=FALSE, include=FALSE}
+raw_values <- tau_df_halo_raw[,c(2,4)]
+# then proceed to ln transform data
+#### LOG TRANSFORMED DATA ####
+tau_df_halo_LOG<- log(tau_df_halo_raw[,c(2,4)])
+# removes any absolute zeros resulting from transformation
+tau_df_halo_LOG$CORES <- tau_df_halo_raw$CORES
+transformed_values <- tau_df_halo_LOG
+```
+
+ 
+```{r, echo=FALSE}
+    # stargazer(as.data.frame(tau_df_halo_LOG), title = "Summary of TMA Tau ln Transformed", type='text')  # Print summary of AO (contains Mean, SD, Min/Max, and Quartiles, type = "text")
+# changes column names of transformed values to have ln prefix
+colnames(transformed_values) <- paste("ln", colnames(transformed_values), sep = "_")
+is.na(transformed_values) <- sapply(transformed_values, is.infinite)
+# creates combine dataset with raw values
+alldat <- cbind(tau_df_halo_raw_with_cores$slide12, raw_values, transformed_values)
+
+alldat <- cbind(tau_df_halo_raw_with_cores$slide12, raw_values, transformed_values)
+colnames(alldat)[colnames(alldat)=="tau_df_halo_raw_with_cores$slide12"] <- "Core"
+```
+
+###**Only work with ln transformed data from this point on**  
+####_Split data with 100 training cores_
+```{r data, echo=FALSE}
+set.seed(999)
+# randomly split dataset into training subset of 30 data points and complementary testing subset. train = control data wich is included in each TMA, test = remainder to test on
+split <- sample(nrow(alldat),replace=F,size=0.5*nrow(alldat))
+train <- alldat[split, ]
+test <- alldat[-split, ]
+#print summary of all columns in training dataset
+stargazer(as.data.frame(train), type = "text", title = "Summary of Training Data")
+# Removes TMA Core name from df
+train_ln_only <- train[,c(2:5)]
+test_ln_only <- test[,c(2:5)]
+
+```
+#### *Correlation Matrix of Tau* `r knitr::kable(lower.tri.cor.matrix(train[,2:5]))`
+
+```{r, echo=FALSE}
+train$ln_slide12_slide13_diff <- train$ln_slide12.ao - train$ln_slide13.ao #S1-S2
+train$slide12_slide13_diff <- train$slide12.ao - train$slide13.ao #S1-S2
+
+train_diff <- train[c("ln_slide12_slide13_diff", "slide12_slide13_diff")]
+stargazer(as.data.frame(train_diff), type = "text", title = "Summary of Training Differences")
+```
+
+```{r t tests/regression on untransformed training data, echo=FALSE, include=FALSE}
+# t test on differences
+
+train.slide12_slide13.t.test <- t.test(train_diff$slide12_slide13_diff, mu = 0) 
+train.ln.slide12_slide13.t.test <- t.test(train_diff$ln_slide12_slide13_diff, mu = 0) 
+```
+
+```{r, echo=FALSE, include=FALSE}
+########### cv Calculations for Training Data-for verfication 
+# Slide 2 - 3 Combinations 
+# ln Transformed
+train.ln.12.13.CV <- inter.assay.cv(train, ln_slide12.ao, ln_slide13.ao)
+# Raw Transformed
+train.raw.12.13.CV <- inter.assay.cv(train, slide12.ao, slide13.ao)
+
+```
+
+```{r AVG CV COMPARISION TRAINING DATA}
+# ln Transformed
+train.ln_avg.cv <- mean(train.ln.12.13.CV$pct.CV, na.rm = T)
+# Raw
+train.raw_avg.cv <- mean(train.raw.12.13.CV$pct.CV, na.rm = T)
+```
+```{r BA Plots - training data untransformed and transformed, echo=FALSE}
+# Serial Intraassay - Run 2
+# ln transformed values
+train.ln.12.13.ba_stats <- bland.altman.stats(train$ln_slide12.ao , train$ln_slide13.ao)
+train.ln.r2_s1.s2_ba_plot <- {plot(train.ln.12.13.ba_stats$means, train.ln.12.13.ba_stats$diffs,
+     main="ln Tau Training Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+  abline(h = train.ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+
+# Raw values
+train.raw.12.13.ba_stats <- bland.altman.stats(train$slide12.ao , train$slide13.ao)
+train.r2_s1.s2_ba_plot <- {plot(train.raw.12.13.ba_stats$means, train.raw.12.13.ba_stats$diffs,
+     main="Raw Tau Training Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+  abline(h = train.raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+
+# par(mfrow = c(2, 1)) # Create a 2 x 2 plotting matrix
+# {plot(raw.12.13.ba_stats$means, raw.12.13.ba_stats$diffs,
+#      main="Raw Tau Training Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+# abline(h = raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+# {plot(ln.12.13.ba_stats$means, ln.12.13.ba_stats$diffs,
+#      main="ln Tau Training Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+# abline(h = ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+```
+
+
+
+# **Testing data on remaining 50% cores**
+
+#### *Correlation Matrix of Tau* `r knitr::kable(lower.tri.cor.matrix(test[,2:5]))`
+
+```{r, echo=FALSE}
+test$ln_slide12_slide13_diff <- test$ln_slide12.ao - test$ln_slide13.ao #S1-S2
+test$slide12_slide13_diff <- test$slide12.ao - test$slide13.ao #S1-S2
+
+test_diff <- test[c("ln_slide12_slide13_diff", "slide12_slide13_diff")]
+stargazer(as.data.frame(test_diff), type = "text", title = "Summary of testing Differences")
+```
+
+```{r, include=FALSE}
+# t test on differences
+test.slide12_slide13.t.test <- t.test(test_diff$slide12_slide13_diff, mu = 0) 
+test.ln.slide12_slide13.t.test <- t.test(test_diff$ln_slide12_slide13_diff, mu = 0) 
+```
+
+```{r, echo=FALSE, include=FALSE}
+########### cv Calculations for testing Data-for verfication 
+# Slide 2 - 3 Combinations 
+# ln Transformed
+test.ln.12.13.CV <- inter.assay.cv(test, ln_slide12.ao, ln_slide13.ao)
+# Raw Transformed
+test.raw.12.13.CV <- inter.assay.cv(test, slide12.ao, slide13.ao)
+
+```
+
+```{r AVG CV COMPARISION testING DATA}
+# ln Transformed
+test.ln_avg.cv <- mean(test.ln.12.13.CV$pct.CV, na.rm = T)
+# Raw
+test.raw_avg.cv <- mean(test.raw.12.13.CV$pct.CV, na.rm = T)
+```
+
+```{r BA Plots - testing data untransformed and transformed, echo=FALSE}
+# Serial Intraassay - Run 2
+# ln transformed values
+test.ln.12.13.ba_stats <- bland.altman.stats(test$ln_slide12.ao , test$ln_slide13.ao)
+test.ln.r2_s1.s2_ba_plot <- {plot(test.ln.12.13.ba_stats$means, test.ln.12.13.ba_stats$diffs,
+     main="ln Tau testing Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = test.ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+# Raw values
+test.raw.12.13.ba_stats <- bland.altman.stats(test$slide12.ao , test$slide13.ao)
+test.r2_s1.s2_ba_plot <- {plot(test.raw.12.13.ba_stats$means, test.raw.12.13.ba_stats$diffs,
+     main="Raw Tau testing Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = test.raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+
+# par(mfrow = c(2, 1)) # Create a 2 x 2 plotting matrix
+# {plot(raw.12.13.ba_stats$means, raw.12.13.ba_stats$diffs,
+#      main="Raw Tau testing Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+# abline(h = raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+# {plot(ln.12.13.ba_stats$means, ln.12.13.ba_stats$diffs,
+#      main="ln Tau testing Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+# abline(h = ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+```
+
+
+
+
+
+# *AT8 Fixed Algorithm*
+```{r}
+setwd("U:/TMA")
+tau_df_halo_raw <- read_excel("Tau TMA AT8 Alg. Data.xlsx")   # Import your dataset
+tau_df_halo_raw_with_cores <- tau_df_halo_raw
+```
+
+### **Sampling with replacement (train n=94, test n=95)***
+
+####** ln Transform Data**
+```{r, echo=FALSE, include=FALSE}
+raw_values <- tau_df_halo_raw[,c(2,4)]
+# then proceed to ln transform data
+#### LOG TRANSFORMED DATA ####
+tau_df_halo_LOG<- log(tau_df_halo_raw[,c(2,4)])
+# removes any absolute zeros resulting from transformation
+tau_df_halo_LOG$CORES <- tau_df_halo_raw$CORES
+transformed_values <- tau_df_halo_LOG
+```
+
+##### **Tau TMA ln Transformed Summary** 
+```{r}
+    # stargazer(as.data.frame(tau_df_halo_LOG), title = "Summary of TMA Tau ln Transformed", type='text')  # Print summary of AO (contains Mean, SD, Min/Max, and Quartiles, type = "text")
+# changes column names of transformed values to have ln prefix
+colnames(transformed_values) <- paste("ln", colnames(transformed_values), sep = "_")
+is.na(transformed_values) <- sapply(transformed_values, is.infinite)
+# creates combine dataset with raw values
+alldat <- cbind(tau_df_halo_raw_with_cores$slide12, raw_values, transformed_values)
+
+alldat <- cbind(tau_df_halo_raw_with_cores$slide12, raw_values, transformed_values)
+colnames(alldat)[colnames(alldat)=="tau_df_halo_raw_with_cores$slide12"] <- "Core"
+```
+
+###**Only work with ln transformed data from this point on**  
+####_Split data with 100 training cores_
+```{r}
+# randomly split dataset into training subset of 30 data points and complementary testing subset. train = control data wich is included in each TMA, test = remainder to test on
+split <- sample(nrow(alldat),replace=F,size=0.5*nrow(alldat))
+train <- alldat[split, ]
+test <- alldat[-split, ]
+#print summary of all columns in training dataset
+stargazer(as.data.frame(train), type = "text", title = "Summary of Training Data")
+# Removes TMA Core name from df
+train_ln_only <- train[,c(2:5)]
+test_ln_only <- test[,c(2:5)]
+
+```
+#### *Correlation Matrix of Tau* `r knitr::kable(lower.tri.cor.matrix(train[,2:5]))`
+
+```{r, echo=FALSE}
+train$ln_slide12_slide13_diff <- train$ln_slide12.ao - train$ln_slide13.ao #S1-S2
+train$slide12_slide13_diff <- train$slide12.ao - train$slide13.ao #S1-S2
+
+train_diff <- train[c("ln_slide12_slide13_diff", "slide12_slide13_diff")]
+stargazer(as.data.frame(train_diff), type = "text", title = "Summary of Training Differences")
+```
+
+```{r}
+# t test on differences
+
+train.fixed.slide12_slide13.t.test <- t.test(train_diff$slide12_slide13_diff, mu = 0) 
+train.fixed.ln.slide12_slide13.t.test <- t.test(train_diff$ln_slide12_slide13_diff, mu = 0) 
+```
+
+
+```{r, echo=FALSE, include=FALSE}
+########### cv Calculations for Training Data-for verfication 
+# Slide 2 - 3 Combinations 
+# ln Transformed
+train.fixed.ln.12.13.CV <- inter.assay.cv(train, ln_slide12.ao, ln_slide13.ao)
+# Raw Transformed
+train.fixed.raw.12.13.CV <- inter.assay.cv(train, slide12.ao, slide13.ao)
+
+```
+
+```{r}
+# ln Transformed
+train.fixed.ln_avg.cv <- mean(train.fixed.ln.12.13.CV$pct.CV, na.rm = T)
+# Raw
+train.fixed.raw_avg.cv <- mean(train.fixed.raw.12.13.CV$pct.CV, na.rm = T)
+```
+
+```{r}
+# Serial Intraassay - Run 2
+# ln transformed values
+train.fixed.ln.12.13.ba_stats <- bland.altman.stats(train$ln_slide12.ao , train$ln_slide13.ao)
+train.fixed.ln.r2_s1.s2_ba_plot <- {plot(train.fixed.ln.12.13.ba_stats$means, train.fixed.ln.12.13.ba_stats$diffs,
+     main="ln Tau Training Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = train.fixed.ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+# Raw values
+train.fixed.raw.12.13.ba_stats <- bland.altman.stats(train$slide12.ao , train$slide13.ao)
+train.fixed.r2_s1.s2_ba_plot <- {plot(train.fixed.raw.12.13.ba_stats$means, train.fixed.raw.12.13.ba_stats$diffs,
+     main="Raw Tau Training Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = train.fixed.raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+
+# par(mfrow = c(2, 1)) # Create a 2 x 2 plotting matrix
+# {plot(raw.12.13.ba_stats$means, raw.12.13.ba_stats$diffs,
+#      main="Raw Tau Training Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+# abline(h = raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+# {plot(ln.12.13.ba_stats$means, ln.12.13.ba_stats$diffs,
+#      main="ln Tau Training Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+# abline(h = ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+```
+
+
+
+# **Testing data on remaining 50% cores**
+
+#### *Correlation Matrix of Tau* `r knitr::kable(lower.tri.cor.matrix(test[,2:5]))`
+
+```{r, echo=FALSE}
+test$ln_slide12_slide13_diff <- test$ln_slide12.ao - test$ln_slide13.ao #S1-S2
+test$slide12_slide13_diff <- test$slide12.ao - test$slide13.ao #S1-S2
+
+test_diff <- test[c("ln_slide12_slide13_diff", "slide12_slide13_diff")]
+stargazer(as.data.frame(test_diff), type = "text", title = "Summary of testing Differences")
+```
+
+```{r, echo=FALSE}
+# t test on differences
+test.fixed.slide12_slide13.t.test <- t.test(test_diff$slide12_slide13_diff, mu = 0) 
+test.fixed.ln.slide12_slide13.t.test <- t.test(test_diff$ln_slide12_slide13_diff, mu = 0) 
+```
+
+```{r, echo=FALSE, include=FALSE}
+########### cv Calculations for testing Data-for verfication 
+# Slide 2 - 3 Combinations 
+# ln Transformed
+test.fixed.ln.12.13.CV <- inter.assay.cv(test, ln_slide12.ao, ln_slide13.ao)
+# Raw Transformed
+test.fixed.raw.12.13.CV <- inter.assay.cv(test, slide12.ao, slide13.ao)
+
+```
+
+```{r, echo=FALSE}
+# ln Transformed
+test.fixed.ln_avg.cv <- mean(test.fixed.ln.12.13.CV$pct.CV, na.rm = T)
+# Raw
+test.fixed.raw_avg.cv <- mean(test.fixed.raw.12.13.CV$pct.CV, na.rm = T)
+```
+
+```{r, echo=FALSE}
+# Serial Intraassay - Run 2
+# ln transformed values
+test.fixed.ln.12.13.ba_stats <- bland.altman.stats(test$ln_slide12.ao , test$ln_slide13.ao)
+test.fixed.ln.r2_s1.s2_ba_plot <- {plot(test.fixed.ln.12.13.ba_stats$means, test.fixed.ln.12.13.ba_stats$diffs,
+     main="ln Tau testing Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = test.fixed.ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+# Raw values
+test.fixed.raw.12.13.ba_stats <- bland.altman.stats(test$slide12.ao , test$slide13.ao)
+test.fixed.r2_s1.s2_ba_plot <- {plot(test.fixed.raw.12.13.ba_stats$means, test.fixed.raw.12.13.ba_stats$diffs,
+     main="Raw Tau testing Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = test.fixed.raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+
+# par(mfrow = c(2, 1)) # Create a 2 x 2 plotting matrix
+# {plot(raw.12.13.ba_stats$means, raw.12.13.ba_stats$diffs,
+#      main="Raw Tau testing Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+# abline(h = raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+# {plot(ln.12.13.ba_stats$means, ln.12.13.ba_stats$diffs,
+#      main="ln Tau testing Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+# abline(h = ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+```
+
+
+
+```{r, echo=FALSE}
+cvs <- c("train.ln_avg.cv", "train.raw_avg.cv", "test.ln_avg.cv", "test.raw_avg.cv")#"train.fixed.ln_avg.cv", "train.fixed.raw_avg.cv", "test.fixed.ln_avg.cv", "test.fixed.raw_avg.cv"
+cvs <- rbind(train.ln_avg.cv, train.raw_avg.cv, test.ln_avg.cv, test.raw_avg.cv) #train.fixed.ln_avg.cv, train.fixed.raw_avg.cv, test.fixed.ln_avg.cv, test.fixed.raw_avg.cv
+colnames(cvs) <- "Mean CV"
+cvs
+```
+####Combine T-Tests from all datasets
+```{r, echo=FALSE}
+t.tests <- map_df(list(train.ln.slide12_slide13.t.test, train.slide12_slide13.t.test, test.ln.slide12_slide13.t.test, test.slide12_slide13.t.test, train.fixed.ln.slide12_slide13.t.test, train.fixed.slide12_slide13.t.test, test.fixed.ln.slide12_slide13.t.test, test.fixed.slide12_slide13.t.test), tidy)
+
+total.tau.t.tests <- format.t.test(t.tests)
+# train.ln.r2_s1.s2_ba_plot
+# train.r2_s1.s2_ba_plot
+# test.ln.r2_s1.s2_ba_plot
+# test.r2_s1.s2_ba_plot
+# train.fixed.ln.r2_s1.s2_ba_plot
+# train.fixed.r2_s1.s2_ba_plot
+# test.fixed.ln.r2_s1.s2_ba_plot
+# test.fixed.r2_s1.s2_ba_plot
+```
+
+#### *TMA T-Test Output* `r knitr::kable(total.tau.t.tests)`
+
+
+
+#*TEST ON ALL DATA*
+#### *Correlation Matrix of Tau* `r knitr::kable(lower.tri.cor.matrix(alldat[,2:5]))`
+
+```{r, echo=FALSE}
+alldat$ln_slide12_slide13_diff <- alldat$ln_slide12.ao - alldat$ln_slide13.ao #S1-S2
+alldat$slide12_slide13_diff <- alldat$slide12.ao - alldat$slide13.ao #S1-S2
+
+alldat_diff <- alldat[c("ln_slide12_slide13_diff", "slide12_slide13_diff")]
+stargazer(as.data.frame(alldat_diff), type = "text", title = "Summary of All Differences")
+```
+
+```{r t tests/regression on untransformed training data, echo=FALSE, include=FALSE}
+# t test on differences
+
+alldat.slide12_slide13.t.test <- t.test(alldat_diff$slide12_slide13_diff, mu = 0) 
+alldat.ln.slide12_slide13.t.test <- t.test(alldat_diff$ln_slide12_slide13_diff, mu = 0) 
+```
+
+```{r, echo=FALSE, include=FALSE}
+########### cv Calculations for Training Data-for verfication 
+# Slide 2 - 3 Combinations 
+# ln Transformed
+alldat.ln.12.13.CV <- inter.assay.cv(alldat, ln_slide12.ao, ln_slide13.ao)
+# Raw Transformed
+alldat.raw.12.13.CV <- inter.assay.cv(alldat, slide12.ao, slide13.ao)
+
+```
+
+```{r AVG CV COMPARISION TRAINING DATA}
+# ln Transformed
+alldat.ln_avg.cv <- mean(alldat.ln.12.13.CV$pct.CV, na.rm = T)
+# Raw
+alldat.raw_avg.cv <- mean(alldat.raw.12.13.CV$pct.CV, na.rm = T)
+```
+```{r BA Plots - training data untransformed and transformed, echo=FALSE}
+# Serial Intraassay - Run 2
+# ln transformed values
+alldat.ln.12.13.ba_stats <- bland.altman.stats(alldat$ln_slide12.ao , alldat$ln_slide13.ao)
+alldat.ln.r2_s1.s2_ba_plot <- {plot(alldat.ln.12.13.ba_stats$means, alldat.ln.12.13.ba_stats$diffs,
+     main="ln all Tau Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+  abline(h = alldat.ln.12.13.ba_stats$lines, col=c("red","blue","red"))}
+
+# Raw values
+alldat.raw.12.13.ba_stats <- bland.altman.stats(alldat$slide12.ao , alldat$slide13.ao)
+alldat.r2_s1.s2_ba_plot <- {plot(alldat.raw.12.13.ba_stats$means, alldat.raw.12.13.ba_stats$diffs,
+     main="Raw all Tau Data Serial Sections - Run 2 vs Run 3", pch = 19, xlab = "Means", ylab = "Differences")
+  abline(h = alldat.raw.12.13.ba_stats$lines, col=c("red","blue","red"))}
+
+alldat.ln.slide12_slide13.t.test
+alldat.slide12_slide13.t.test
+```

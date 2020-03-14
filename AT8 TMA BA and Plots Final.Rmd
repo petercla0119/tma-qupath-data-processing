@@ -1,0 +1,1086 @@
+---
+title: "AT8 TMA BA and Plots Final"
+author: "Claire S. Peterson"
+date: "8/9/2019"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 5
+---
+
+### Raw Transformed tau %AO
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# If this is your first time using R, please install packages with the commented lines below. Note the line will need to be uncommented (delete leading #) in order to run
+# install.packages(c("ggplot2", "BlandAltmanLeh", "readxl", "stargazer", "matrixStats"), dependencies = TRUE)
+# Load packages into the current R session.
+library(ggplot2)  #data visualization
+library(BlandAltmanLeh)
+library(readxl)   #read excel files
+library(stargazer)  #print out clean tables
+library(matrixStats)
+library(corrplot)
+library(gridExtra)
+library(dplyr)
+library(ggExtra)
+library(blandr)
+library(ggpubr)
+setwd("C:/GitHub/FTDC-IrwinLab/TMA_Validation/AT8 TMA TISSUE DETECTED HALO RESULTS")
+list.files()
+tau_df_halo_raw<- read.csv("AT8 Tissue Detected Core AO.csv")   # Import your dataset
+names(tau_df_halo_raw)
+names(tau_df_halo_raw) <- c("CORES", "R1_S1", "R1_S2_CORES", "R1_S2", "R2_S1_CORES", "R2_S1", "R2_S2_CORES", "R2_S2", "R2_S3_CORES", "R2_S3",  "R3_S1_CORES", "R3_S1",  "R3_S2_CORES", "R3_S2", "R3_S3_CORES", "R3_S3")
+AO<-tau_df_halo_raw[,c(2,4,6,8,10,12,14,16)]
+stargazer(as.data.frame(AO), title = "Summary of TMA tau %AO",type = "text")  # Print summary of AO (contains Mean, SD, Min/Max, and Quartiles)
+tau_df_halo <- tau_df_halo_raw
+# Create function for calculating correlations and outputting lower triangle correlation matrices ####
+lower.tri.cor.matrix <- function(df){
+  cor.matrix<-round(cor(df, use = "complete.obs"), 3)
+  cor.matrix[upper.tri(cor.matrix)]<-""
+  cor.matrix<-as.data.frame(cor.matrix)
+  cor.matrix
+  
+  return(cor.matrix)
+}
+#####     CV VALUES    #####
+inter.assay.cv <- function(df, ...){
+  grp_vars <- quos(...)
+  selected.cols <- df %>%
+    select(!!!grp_vars)
+  dat.as.matrix <- as.matrix(selected.cols)
+  selected.cols$mean <- rowMeans(selected.cols,na.rm = T)
+  selected.cols$sd <- rowSds(dat.as.matrix,na.rm = T)
+  selected.cols <- selected.cols %>%
+    mutate(CV = sd/mean,
+           pct.CV = (sd/mean)*100)
+  
+  return(selected.cols)
+}
+
+```
+
+```{r raw differences columns, echo=FALSE, include=FALSE}
+             # Intra-assay #
+# Intra-assay #
+#---------------------------------------------------------------
+# Run 1
+tau_df_halo$R1.S1_R1.S2 <- tau_df_halo$R1_S1 - tau_df_halo$R1_S2
+# Run 2
+tau_df_halo$R2.S1_R2.S2 <- tau_df_halo$R2_S1 - tau_df_halo$R2_S2
+tau_df_halo$R2.S1_R2.S3 <- tau_df_halo$R2_S1 - tau_df_halo$R2_S3
+tau_df_halo$R2.S2_R2.S3 <- tau_df_halo$R2_S2 - tau_df_halo$R2_S3
+# Run 3
+tau_df_halo$R3.S1_R3.S2 <- tau_df_halo$R3_S1 - tau_df_halo$R3_S2
+tau_df_halo$R3.S1_R3.S3 <- tau_df_halo$R3_S1 - tau_df_halo$R3_S3
+tau_df_halo$R3.S2_R3.S3 <- tau_df_halo$R3_S2 - tau_df_halo$R3_S3
+
+# Inter-Assay #
+#---------------------------------------------------------------
+# Slide 1
+tau_df_halo$R1.S1_R2.S1 <- tau_df_halo$R1_S1 - tau_df_halo$R2_S1
+tau_df_halo$R1.S1_R3.S1 <- tau_df_halo$R1_S1 - tau_df_halo$R3_S1   # Problem row... values identical to column 3
+tau_df_halo$R2.S1_R3.S1 <- tau_df_halo$R2_S1 - tau_df_halo$R3_S1
+# Slide 2
+tau_df_halo$R1.S2_R2.S2 <- tau_df_halo$R1_S2 - tau_df_halo$R2_S2
+tau_df_halo$R1.S2_R3.S2 <- tau_df_halo$R1_S2 - tau_df_halo$R3_S2
+tau_df_halo$R2.S2_R3.S2 <- tau_df_halo$R2_S2 - tau_df_halo$R3_S2
+# Slide 3
+tau_df_halo$R2.S3_R3.S3 <- tau_df_halo$R2_S3 - tau_df_halo$R3_S3
+
+##### Other Combinations Across Runs and Slides #####
+tau_df_halo$R1.S1_R2.S2 <- tau_df_halo$R1_S1 - tau_df_halo$R2_S2   # Problem row... values identical to column 5
+tau_df_halo$R1.S1_R2.S3 <- tau_df_halo$R1_S1 - tau_df_halo$R2_S3
+tau_df_halo$R1.S1_R3.S2 <- tau_df_halo$R1_S1 - tau_df_halo$R3_S2
+tau_df_halo$R1.S1_R3.S3 <- tau_df_halo$R1_S1 - tau_df_halo$R3_S3
+tau_df_halo$R1.S2_R2.S1 <- tau_df_halo$R1_S2 - tau_df_halo$R2_S1
+tau_df_halo$R1.S2_R2.S3 <- tau_df_halo$R1_S2 - tau_df_halo$R2_S3
+tau_df_halo$R1.S2_R3.S1 <- tau_df_halo$R1_S2 - tau_df_halo$R3_S1
+tau_df_halo$R1.S2_R3.S3 <- tau_df_halo$R1_S2 - tau_df_halo$R3_S3
+tau_df_halo$R2.S1_R3.S2 <- tau_df_halo$R2_S1 - tau_df_halo$R3_S2
+tau_df_halo$R2.S1_R3.S3 <- tau_df_halo$R2_S1 - tau_df_halo$R3_S3
+tau_df_halo$R2.S2_R3.S1 <- tau_df_halo$R2_S2 - tau_df_halo$R3_S1  # Problem line... resulting in 0 values in column
+tau_df_halo$R2.S2_R3.S3 <- tau_df_halo$R2_S2 - tau_df_halo$R3_S3
+tau_df_halo$R2.S3_R3.S1 <- tau_df_halo$R2_S3 - tau_df_halo$R3_S1
+tau_df_halo$R2.S3_R3.S2 <- tau_df_halo$R2_S3 - tau_df_halo$R3_S2
+
+# Create vector to store columns of AO differences by all possible combinations 
+#---------------------------------------------------------------------------------
+all.diff<-tau_df_halo[ ,c("CORES","R1.S1_R1.S2", "R1.S1_R2.S1", "R1.S1_R2.S2", "R1.S1_R2.S3", "R1.S1_R3.S1", "R1.S1_R3.S2", "R1.S1_R3.S3", "R1.S2_R2.S1", "R1.S2_R2.S2", "R1.S2_R2.S3", "R1.S2_R3.S1", "R1.S2_R3.S2", "R1.S2_R3.S3", "R2.S1_R2.S2", "R2.S1_R2.S3", "R2.S1_R3.S1", "R2.S1_R3.S2", "R2.S1_R3.S3", "R2.S2_R2.S3", "R2.S2_R3.S1", "R2.S2_R3.S2", "R2.S2_R3.S3", "R2.S3_R3.S1", "R2.S3_R3.S2", "R2.S3_R3.S3", "R3.S1_R3.S2", "R3.S1_R3.S3", "R3.S1_R3.S3","R3.S2_R3.S3")]
+
+# Create vectors of intra and inter-assay groupings ####
+#---------------------------------------------------------
+# Intra-assay groups
+intra1 <- tau_df_halo[,c("R1_S1", "R1_S2")] #, "R1.S1_R1.S2"
+intra2 <- tau_df_halo[,c("R2_S1", "R2_S2", "R2_S3")] #, "R2.S1_R2.S2", "R2.S1_R2.S3", "R2.S2_R2.S3"
+intra3 <- tau_df_halo[,c("R3_S1", "R3_S2", "R3_S3")] # , "R3.S1_R3.S2", "R3.S1_R3.S3", "R3.S2_R3.S3"
+# Inter-assay groups
+inter1 <- tau_df_halo[,c("R1_S1", "R2_S1", "R3_S1")] #, "R1.S1_R2.S1", "R1.S1_R3.S1", "R2.S1_R3.S1"  
+inter2 <- tau_df_halo[,c("R1_S2", "R2_S2", "R3_S2")] #, "R1.S2_R2.S2", "R1.S2_R3.S2", "R2.S2_R3.S2"
+inter3 <- tau_df_halo[,c("R2_S3", "R3_S3")] #,"R2.S3_R3.S3"
+
+```
+
+```{r raw one sample t-tests, echo=FALSE, include=FALSE}
+# Intra-assay #
+#---------------------------------------------------------------
+# Run 1
+r1s1vsr1s2 <- t.test(tau_df_halo$R1.S1_R1.S2, mu = 0)
+# Run 2
+r2s1vsr2s2 <- t.test(tau_df_halo$R2.S1_R2.S2, mu = 0)
+r2s1vsr2s3<- t.test(tau_df_halo$R2.S1_R2.S3, mu = 0)
+r2s2vsr2s3<- t.test(tau_df_halo$R2.S2_R2.S3, mu = 0)
+# Run 3
+r3s1vsr3s2 <- t.test(tau_df_halo$R3.S1_R3.S2, mu = 0) 
+r3s1vsr3s3 <- t.test(tau_df_halo$R3.S1_R3.S3, mu = 0) 
+r3s2vsr3s3 <- t.test(tau_df_halo$R3.S2_R3.S3, mu = 0)
+
+# Inter-assay #
+#---------------------------------------------------------------
+# Slide 1
+r1s1vsr2s1 <- t.test(tau_df_halo$R1.S1_R2.S1, mu = 0)
+r1s1vsr3s1 <- t.test(tau_df_halo$R1.S1_R3.S1, mu = 0)
+r2s1vsr3s1 <- t.test(tau_df_halo$R2.S1_R3.S1, mu = 0)
+# Slide 2
+r1s2vsr2s2 <- t.test(tau_df_halo$R1.S2_R2.S2, mu = 0)
+r1s2vsr3s2 <- t.test(tau_df_halo$R1.S2_R3.S2, mu = 0) 
+r2s2vsr3s2 <- t.test(tau_df_halo$R2.S2_R3.S2, mu = 0) 
+# Slide 3
+r2s2vsr3s3 <- t.test(tau_df_halo$R2.S3_R3.S3, mu = 0)
+
+
+
+##### Other Combinations Across Runs and Slides #####
+r1s1vsr2s2 <- t.test(tau_df_halo$R1.S1_R2.S2, mu = 0)
+r1s2vsr2s3 <- t.test(tau_df_halo$R1.S1_R2.S3, mu = 0)
+r1s1vsr3s2 <- t.test(tau_df_halo$R1.S1_R3.S2, mu = 0)
+r1s1vsr3s3 <- t.test(tau_df_halo$R1.S1_R3.S3, mu = 0)
+r1s2vsr2s1 <- t.test(tau_df_halo$R1.S2_R2.S1, mu = 0)
+r1s2vsr2s3 <- t.test(tau_df_halo$R1.S2_R2.S3, mu = 0)  
+r1s2vsr3s1 <- t.test(tau_df_halo$R1.S2_R3.S1, mu = 0)
+r1s1vsr3s3 <- t.test(tau_df_halo$R1.S2_R3.S3, mu = 0) 
+r2s1vsr3s2 <- t.test(tau_df_halo$R2.S1_R3.S2, mu = 0)
+r2s1vsr3s3 <- t.test(tau_df_halo$R2.S1_R3.S3, mu = 0)
+r2s2vsr3s1 <- t.test(tau_df_halo$R2.S2_R3.S1, mu = 0)
+r2s2vsr3s3 <- t.test(tau_df_halo$R2.S2_R3.S3, mu = 0) 
+r2s3vsr3s1 <- t.test(tau_df_halo$R2.S3_R3.S1, mu = 0)
+r2s3vsr3s2 <- t.test(tau_df_halo$R2.S3_R3.S2, mu = 0)
+```
+
+```{r raw correlation matrices, echo=FALSE}
+         # Intra-assay Correlation Matrix  #
+#--------------------------------------------------
+intra1.corr <- lower.tri.cor.matrix(intra1)
+intra2.corr <- lower.tri.cor.matrix(intra2)
+intra3.corr <- lower.tri.cor.matrix(intra3)
+         # Inter-assay Correlation Matrix  #
+#--------------------------------------------------
+inter1.corr <- lower.tri.cor.matrix(inter1)
+inter2.corr <- lower.tri.cor.matrix(inter2)
+inter3.corr <- lower.tri.cor.matrix(inter3)
+```
+
+#### **Raw Intra-assay correlations**
+##### **Run 1** `r knitr::kable(intra1.corr)`
+##### **Run 2** `r knitr::kable(intra2.corr)`
+##### **Run 3** `r knitr::kable(intra3.corr)`
+#### **Raw Inter-assay correlations**
+##### **Run 1** `r knitr::kable(inter1.corr)`
+##### **Run 2** `r knitr::kable(inter2.corr)`
+##### **Run 3** `r knitr::kable(inter3.corr)`
+
+```{r raw linear models, echo=FALSE, include=FALSE}
+# Intra-assay Linear Models  #
+#--------------------------------------------------
+# Run 1
+run1.1v2 <- lm(tau_df_halo$R1_S1 ~ tau_df_halo$R1_S2)
+summary(run1.1v2)
+stargazer(run1.1v2, type ="text", title = "Run 1 Intra-assay Linear Regression")  # In table, Constant=?? and value below in ()=Std. Error
+# Run 2
+run2.1v2 <- lm(tau_df_halo$R2_S1 ~ tau_df_halo$R2_S2)
+run2.2v3 <- lm(tau_df_halo$R2_S2 ~ tau_df_halo$R2_S3)
+run2.1v3 <- lm(tau_df_halo$R2_S1 ~ tau_df_halo$R2_S3)
+summary(run2.1v2)
+summary(run2.2v3)
+summary(run2.1v3)
+stargazer(run2.1v2, run2.1v3, run2.2v3, type ="text",title = "Run 2 Intra-assay Linear Regression")
+# Run 3
+run3.1v2 <- lm(tau_df_halo$R3_S1 ~ tau_df_halo$R3_S2)
+run3.2v3 <- lm(tau_df_halo$R3_S2 ~ tau_df_halo$R3_S3)
+run3.1v3 <- lm(tau_df_halo$R3_S1 ~ tau_df_halo$R3_S3)
+summary(run3.1v2)
+summary(run3.2v3)
+summary(run3.1v3)
+stargazer(run3.1v2, run3.1v3, run3.2v3, type ="text",title = "Run 3 Intra-assay Linear Regression")
+
+# Combined intra-assay model output
+stargazer(run1.1v2, run2.1v2, run2.1v3, run2.2v3, run3.1v2, run3.1v3, run3.2v3, type="text", title = "Intra-assay Untranformed Linear Regression")
+
+# Inter-assay Linear Models  #
+#--------------------------------------------------
+# Slide 1
+slide1.r1vr2 <- lm(tau_df_halo$R1_S1 ~ tau_df_halo$R2_S1)
+summary(slide1.r1vr2)
+slide1.r2vr3 <- lm(tau_df_halo$R2_S1 ~ tau_df_halo$R3_S1)
+summary(slide1.r2vr3)
+slide1.r1vr3 <- lm(tau_df_halo$R1_S1 ~ tau_df_halo$R3_S1)
+summary(slide1.r1vr3)
+stargazer(slide1.r1vr2,slide1.r2vr3,slide1.r1vr3, type ="text", title = "Slide 1 Untransformed Inter-assay Linear Regression Models")
+
+# Slide 2
+slide2.r1vr2 <- lm(tau_df_halo$R1_S2 ~ tau_df_halo$R2_S2)
+summary(slide2.r1vr2)
+slide2.r2vr3 <- lm(tau_df_halo$R2_S2 ~ tau_df_halo$R3_S2)
+summary(slide2.r2vr3)
+slide2.r1vr3 <- lm(tau_df_halo$R1_S2 ~ tau_df_halo$R3_S2)
+summary(slide2.r1vr3)
+stargazer(slide2.r1vr2,slide2.r1vr3, type ="text", title = "Slide 2 Untransformed Inter-assay Linear Regression Models")
+
+# Slide 3
+slide3.r2vr3 <- lm(tau_df_halo$R2_S3 ~ tau_df_halo$R3_S3)
+summary(slide3.r2vr3)
+stargazer(slide3.r2vr3, type ="text", title = "Slide 3 Untransformed Inter-assay Linear Regression Models")
+
+# Combined inter-assay model output
+stargazer(slide1.r1vr2,slide1.r2vr3,slide1.r1vr3, slide2.r1vr2,slide2.r2vr3,slide2.r1vr3,slide3.r2vr3, type ="text", title = "Inter-assay Untransformed Linear Regression Models")
+
+```
+
+#### **Raw Intra-assay Plots**
+```{r raw intra assay scatter plots, echo=FALSE, warning=FALSE}
+# Intra-assay Scatter Plots  #
+#--------------------------------------------------
+# Run 1 Plot
+r1.1v2 <- ggplot(data = tau_df_halo, aes(x = R1_S1, y = R1_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R1.S1 %AO") + ylab("R1.S2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 20, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# List cores which are outliers/problems
+r1.s1.s2_large_differences <- all.diff[,c("CORES","R1.S1_R1.S2")]
+r1.s1.s2_large_differences <- r1.s1.s2_large_differences %>% filter(R1.S1_R1.S2>10)   # prints list of cores to check in Run 1 slide 1 and Run 1 slide 2 which have a AO difference greater than 10.
+
+# Run 2 Plot (1v2)
+r2.1v2 <- ggplot(data = tau_df_halo, aes(x = R2_S1, y = R2_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S1 %AO") + ylab("R2.S2 %AO") +  theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+r2.s1.s2_large_differences <- all.diff[,c("CORES","R2.S1_R2.S2")]
+r2.s1.s2_large_differences <- r2.s1.s2_large_differences %>% filter(R2.S1_R2.S2>10)
+# Run 2 Plot (2v3)
+r2.2v3 <- ggplot(data = tau_df_halo, aes(x = R2_S2, y = R2_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S2 %AO") + ylab("R2.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+r2.s2.s3_large_differences <- all.diff[,c("CORES","R2.S2_R2.S3")]
+r2.s2.s3_large_differences <- r2.s2.s3_large_differences %>% filter(R2.S2_R2.S3>10)
+# Run 2 Plot (1v3)
+r2.1v3 <- ggplot(data = tau_df_halo, aes(x = R2_S1, y = R2_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S1 %AO") + ylab("R2.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+r2.s1.s3_large_differences <- all.diff[,c("CORES","R2.S1_R2.S3")]
+r2.s1.s3_large_differences <- r2.s1.s3_large_differences %>% filter(R2.S1_R2.S3>10)
+
+# Run 3 Plot (1v2)
+r3.1v2 <- ggplot(data = tau_df_halo, aes(x = R3_S1, y = R3_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S1 %AO") + ylab("R3.S2 %AO") +  theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# List cores which are outliers/problems
+r3.s1.s2_large_differences <- all.diff[,c("CORES","R3.S1_R3.S2")]
+r3.s1.s2_large_differences <- r3.s1.s2_large_differences %>% filter(R3.S1_R3.S2>10)
+
+# Run 3 Plot (2v3)
+r3.2v3 <- ggplot(data = tau_df_halo, aes(x = R3_S2, y = R3_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S2 %AO") + ylab("R3.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# List cores which are outliers/problems
+r3.s2.s3_large_differences <- all.diff[,c("CORES","R3.S2_R3.S3")]
+r3.s2.s3_large_differences <- r3.s2.s3_large_differences %>% filter(R3.S2_R3.S3>10)
+
+# Run 3 Plot (1v3)
+r3.1v3 <- ggplot(data = tau_df_halo, aes(x = R3_S1, y = R3_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S1 %AO") + ylab("R3.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# List cores which are outliers/problems
+r3.s1.s3_large_differences <- all.diff[,c("CORES","R3.S1_R3.S3")]
+r3.s1.s3_large_differences <- r3.s1.s3_large_differences %>% filter(R3.S1_R3.S3>10)
+
+# Prints Intra-assay Scatter Plots Together  #
+#-------------------------------------------------------------------
+untransformed_intra <- ggarrange(r1.1v2, r2.1v2, r2.2v3, ncol = 3, nrow = 1) 
+annotate_figure(untransformed_intra, top = text_grob("Raw Untransformed Intra-assay - tau",  face = "bold", size = 10))
+untransformed2_intra <- ggarrange(r2.1v3, r3.1v2, r3.2v3, ncol = 3, nrow = 1)
+annotate_figure(untransformed_intra, top = text_grob("Raw Untransformed Intra-assay - tau",  face = "bold", size = 10))
+untransformed3_intra <- ggarrange(r3.1v3, ncol = 3, nrow = 1) 
+annotate_figure(untransformed_intra, top = text_grob("Raw Untransformed Intra-assay - tau",  face = "bold", size = 10))
+
+```
+
+#### **Raw Inter-assay Plots**
+```{r raw inter assay scatter plots, echo=FALSE, warning=FALSE}
+####    Inter-assay plots     ####
+# Slide 1
+inter1.s1.1v2<- ggplot(data = inter1, aes(x = R1_S1, y = R2_S1)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 1 %AO") + ylab("Run 2 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter1.s1.2v3<- ggplot(data = inter1, aes(x = R2_S1, y = R3_S1)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 2 Slide 1 %AO") + ylab("Run 3 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter1.s1.1v3<- ggplot(data = inter1, aes(x = R1_S1, y = R3_S1)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 1 %AO") + ylab("Run 3 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Slide 2
+inter2.s2.1v2<- ggplot(data = inter2, aes(x = R1_S2, y = R2_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 2 %AO") + ylab("Run 2 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter2.s2.2v3<- ggplot(data = inter2, aes(x = R2_S2, y = R3_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 2 Slide 2 %AO") + ylab("Run 3 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter2.s2.1v3<- ggplot(data = inter2, aes(x = R1_S2, y = R3_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 2 %AO") + ylab("Run 3 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Slide 3
+inter3.s3.2v3<- ggplot(data = inter3, aes(x = R2_S3, y = R3_S3)) + 
+  geom_point(size = 2, colour = "blue") +
+  geom_smooth(method = "lm", colour = "red", se = FALSE) + 
+  xlab("Run 2 Slide 3 %AO") + ylab("Run 3 Slide 3 %AO") +  
+  ggtitle("Slide 3 Comparison") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+
+# Prints Inter-assay Scatter Plots Together  #
+#-------------------------------------------------------------------
+untransformed_inter <- ggarrange(inter1.s1.1v2, inter1.s1.2v3, inter1.s1.1v3, inter2.s2.1v2, inter2.s2.2v3, inter2.s2.1v3, ncol = 3, nrow = 2)
+annotate_figure(untransformed_inter, top = text_grob("Raw Untransformed Inter-assay -tau",  face = "bold", size = 16))
+# removes run 2 vs run 3 comparison
+untransformed_inter <- ggarrange(inter1.s1.1v2, inter1.s1.1v3, inter2.s2.1v2, inter2.s2.1v3, ncol = 2, nrow = 2)
+annotate_figure(untransformed_inter, top = text_grob(" Raw Untransformed Inter-assay - tau",  face = "bold", size = 16))
+
+```
+
+
+### Natural Log Transformed tau %AO 
+```{r Natural Log Transformed tau, echo=FALSE}
+# ***NATURAL LOG TRANSFORMATION FOR tau*** ####
+tau_df_halo_LOG<- log(tau_df_halo_raw[,c(2,4,6,8,10,12,14,16)])
+is.na(tau_df_halo_LOG) <- sapply(tau_df_halo_LOG, is.infinite)
+tau_df_halo_LOG$CORES <- tau_df_halo$CORES
+stargazer(as.data.frame(tau_df_halo_LOG), title = "Summary of TMA tau Natural Log Transformed",type = "text")  # Print summary of AO (contains Mean, SD, Min/Max, and Quartiles)
+```
+
+```{r log transformed differences columns, echo=FALSE, include=FALSE}
+#---------------------------------------------------------------
+# Run 1
+tau_df_halo_LOG$R1.S1_R1.S2 <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R1_S2
+# Run 2
+tau_df_halo_LOG$R2.S1_R2.S2 <- tau_df_halo_LOG$R2_S1 - tau_df_halo_LOG$R2_S2
+tau_df_halo_LOG$R2.S1_R2.S3 <- tau_df_halo_LOG$R2_S1 - tau_df_halo_LOG$R2_S3
+tau_df_halo_LOG$R2.S2_R2.S3 <- tau_df_halo_LOG$R2_S2 - tau_df_halo_LOG$R2_S3
+# Run 3
+tau_df_halo_LOG$R3.S1_R3.S2 <- tau_df_halo_LOG$R3_S1 - tau_df_halo_LOG$R3_S2
+tau_df_halo_LOG$R3.S1_R3.S3 <- tau_df_halo_LOG$R3_S1 - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R3.S2_R3.S3 <- tau_df_halo_LOG$R3_S2 - tau_df_halo_LOG$R3_S3
+
+# Inter-Assay #
+#---------------------------------------------------------------
+# Slide 1
+tau_df_halo_LOG$R1.S1_R2.S1 <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R2_S1
+tau_df_halo_LOG$R1.S1_R3.S1 <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R3_S1   # Problem row... values identical to column 3
+tau_df_halo_LOG$R2.S1_R3.S1 <- tau_df_halo_LOG$R2_S1 - tau_df_halo_LOG$R3_S1
+# Slide 2
+tau_df_halo_LOG$R1.S2_R2.S2 <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R2_S2
+tau_df_halo_LOG$R1.S2_R3.S2 <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R3_S2
+tau_df_halo_LOG$R2.S2_R3.S2 <- tau_df_halo_LOG$R2_S2 - tau_df_halo_LOG$R3_S2
+# Slide 3
+tau_df_halo_LOG$R2.S3_R3.S3 <- tau_df_halo_LOG$R2_S3 - tau_df_halo_LOG$R3_S3
+
+##### Other Combinations Across Runs and Slides #####
+tau_df_halo_LOG$R1.S1_R2.S2 <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R2_S2   # Problem row... values identical to column 5
+tau_df_halo_LOG$R1.S1_R2.S3 <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R2_S3
+tau_df_halo_LOG$R1.S1_R3.S2 <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R3_S2
+tau_df_halo_LOG$R1.S1_R3.S3 <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R1.S2_R2.S1 <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R2_S1
+tau_df_halo_LOG$R1.S2_R2.S3 <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R2_S3
+tau_df_halo_LOG$R1.S2_R3.S1 <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R3_S1
+tau_df_halo_LOG$R1.S2_R3.S3 <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R2.S1_R3.S2 <- tau_df_halo_LOG$R2_S1 - tau_df_halo_LOG$R3_S2
+tau_df_halo_LOG$R2.S1_R3.S3 <- tau_df_halo_LOG$R2_S1 - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R2.S2_R3.S1 <- tau_df_halo_LOG$R2_S2 - tau_df_halo_LOG$R3_S1  # Problem line... resulting in 0 values in column
+tau_df_halo_LOG$R2.S2_R3.S3 <- tau_df_halo_LOG$R2_S2 - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R2.S3_R3.S1 <- tau_df_halo_LOG$R2_S3 - tau_df_halo_LOG$R3_S1
+tau_df_halo_LOG$R2.S3_R3.S2 <- tau_df_halo_LOG$R2_S3 - tau_df_halo_LOG$R3_S2
+
+# Create vector to store columns of AO differences by all possible combinations 
+#---------------------------------------------------------------------------------
+all.diff_LOG <- tau_df_halo_LOG[ ,c("CORES", "R1.S1_R1.S2", "R1.S1_R2.S1", "R1.S1_R2.S2", "R1.S1_R2.S3", "R1.S1_R3.S1", "R1.S1_R3.S2", "R1.S1_R3.S3", "R1.S2_R2.S1", "R1.S2_R2.S2", "R1.S2_R2.S3", "R1.S2_R3.S1", "R1.S2_R3.S2", "R1.S2_R3.S3", "R2.S1_R2.S2", "R2.S1_R2.S3", "R2.S1_R3.S1", "R2.S1_R3.S2", "R2.S1_R3.S3", "R2.S2_R2.S3", "R2.S2_R3.S1", "R2.S2_R3.S2", "R2.S2_R3.S3", "R2.S3_R3.S1", "R2.S3_R3.S2", "R2.S3_R3.S3", "R3.S1_R3.S2", "R3.S1_R3.S3", "R3.S1_R3.S3","R3.S2_R3.S3")]
+
+# Create vectors of intra and inter-assay groupings ####
+#---------------------------------------------------------
+# Intra-assay groups
+intra1_LOG <- tau_df_halo_LOG[,c("R1_S1", "R1_S2")] #, "R1.S1_R1.S2"
+intra2_LOG <- tau_df_halo_LOG[,c("R2_S1", "R2_S2", "R2_S3")] #, "R2.S1_R2.S2", "R2.S1_R2.S3", "R2.S2_R2.S3"
+intra3_LOG <- tau_df_halo_LOG[,c("R3_S1", "R3_S2", "R3_S3")] # , "R3.S1_R3.S2", "R3.S1_R3.S3", "R3.S2_R3.S3"
+# Inter-assay groups
+inter1_LOG <- tau_df_halo_LOG[,c("R1_S1", "R2_S1", "R3_S1")] #, "R1.S1_R2.S1", "R1.S1_R3.S1", "R2.S1_R3.S1"  
+inter2_LOG <- tau_df_halo_LOG[,c("R1_S2", "R2_S2", "R3_S2")] #, "R1.S2_R2.S2", "R1.S2_R3.S2", "R2.S2_R3.S2"
+inter3_LOG <- tau_df_halo_LOG[,c("R2_S3", "R3_S3")] #,"R2.S3_R3.S3"
+```
+
+```{r log transformed one sample t-tests, echo=FALSE, include=FALSE}
+# Intra-assay #
+#---------------------------------------------------------------
+# Run 1
+r1s1vsr1s2_LOG <- t.test(tau_df_halo_LOG$R1.S1_R1.S2, mu = 0)
+# Run 2
+r2s1vsr2s2_LOG <- t.test(tau_df_halo_LOG$R2.S1_R2.S2, mu = 0)
+r2s1vsr2s3_LOG<- t.test(tau_df_halo_LOG$R2.S1_R2.S3, mu = 0)
+r2s2vsr2s3_LOG<- t.test(tau_df_halo_LOG$R2.S2_R2.S3, mu = 0)
+# Run 3
+r3s1vsr3s2_LOG <- t.test(tau_df_halo_LOG$R3.S1_R3.S2, mu = 0) 
+r3s1vsr3s3_LOG <- t.test(tau_df_halo_LOG$R3.S1_R3.S3, mu = 0) 
+r3s2vsr3s3_LOG <- t.test(tau_df_halo_LOG$R3.S2_R3.S3, mu = 0)
+
+# Inter-assay #
+#---------------------------------------------------------------
+# Slide 1
+r1s1vsr2s1_LOG <- t.test(tau_df_halo_LOG$R1.S1_R2.S1, mu = 0)
+r1s1vsr3s1_LOG <- t.test(tau_df_halo_LOG$R1.S1_R3.S1, mu = 0)
+r2s1vsr3s1_LOG <- t.test(tau_df_halo_LOG$R2.S1_R3.S1, mu = 0)
+# Slide 2
+r1s2vsr2s2_LOG <- t.test(tau_df_halo_LOG$R1.S2_R2.S2, mu = 0)
+r1s2vsr3s2_LOG <- t.test(tau_df_halo_LOG$R1.S2_R3.S2, mu = 0) 
+r2s2vsr3s2_LOG <- t.test(tau_df_halo_LOG$R2.S2_R3.S2, mu = 0) 
+# Slide 3
+r2s2vsr3s3_LOG <- t.test(tau_df_halo_LOG$R2.S3_R3.S3, mu = 0)
+
+
+
+##### Other Combinations Across Runs and Slides #####
+r1s1vsr2s2_LOG <- t.test(tau_df_halo_LOG$R1.S1_R2.S2, mu = 0)
+r1s2vsr2s3_LOG <- t.test(tau_df_halo_LOG$R1.S1_R2.S3, mu = 0)
+r1s1vsr3s2_LOG <- t.test(tau_df_halo_LOG$R1.S1_R3.S2, mu = 0)
+r1s1vsr3s3_LOG <- t.test(tau_df_halo_LOG$R1.S1_R3.S3, mu = 0)
+r1s2vsr2s1_LOG <- t.test(tau_df_halo_LOG$R1.S2_R2.S1, mu = 0)
+r1s2vsr2s3_LOG <- t.test(tau_df_halo_LOG$R1.S2_R2.S3, mu = 0)  
+r1s2vsr3s1_LOG <- t.test(tau_df_halo_LOG$R1.S2_R3.S1, mu = 0)
+r1s1vsr3s3_LOG <- t.test(tau_df_halo_LOG$R1.S2_R3.S3, mu = 0) 
+r2s1vsr3s2_LOG <- t.test(tau_df_halo_LOG$R2.S1_R3.S2, mu = 0)
+r2s1vsr3s3_LOG <- t.test(tau_df_halo_LOG$R2.S1_R3.S3, mu = 0)
+r2s2vsr3s1_LOG <- t.test(tau_df_halo_LOG$R2.S2_R3.S1, mu = 0)
+r2s2vsr3s3_LOG <- t.test(tau_df_halo_LOG$R2.S2_R3.S3, mu = 0) 
+r2s3vsr3s1_LOG <- t.test(tau_df_halo_LOG$R2.S3_R3.S1, mu = 0)
+r2s3vsr3s2_LOG <- t.test(tau_df_halo_LOG$R2.S3_R3.S2, mu = 0)
+
+```
+
+```{r log transformed correlation matrices, echo=FALSE}
+#--------------------------------------------------
+intra1.corr_LOG <- lower.tri.cor.matrix(intra1_LOG)
+intra2.corr_LOG <- lower.tri.cor.matrix(intra2_LOG)
+intra3.corr_LOG <- lower.tri.cor.matrix(intra3_LOG)
+# Inter-assay Correlation Matrix  #
+#--------------------------------------------------
+inter1.corr_LOG <- lower.tri.cor.matrix(inter1_LOG)
+inter2.corr_LOG <- lower.tri.cor.matrix(inter2_LOG)
+inter3.corr_LOG <- lower.tri.cor.matrix(inter3_LOG)
+```
+
+#### **Log Transformed Intra-assay correlations**
+##### **Run 1** `r knitr::kable(intra1.corr_LOG)`
+##### **Run 2** `r knitr::kable(intra2.corr_LOG)`
+##### **Run 3** `r knitr::kable(intra3.corr_LOG)`
+#### **Log Transformed Inter-assay correlations**
+##### **Run 1** `r knitr::kable(inter1.corr_LOG)`
+##### **Run 2** `r knitr::kable(inter2.corr_LOG)`
+##### **Run 3** `r knitr::kable(inter3.corr_LOG)`
+
+```{r log transformed linear models, echo=FALSE, include=FALSE}
+# Intra-assay Linear Models  #
+#--------------------------------------------------
+# Run 1
+run1.1v2_LOG <- lm(tau_df_halo_LOG$R1_S1 ~ tau_df_halo_LOG$R1_S2)
+summary(run1.1v2_LOG)
+stargazer(run1.1v2_LOG, type ="text", title = "Run 1 Intra-assay Linear Regression")  # In table, Constant=?? and value below in ()=Std. Error
+# Run 2
+run2.1v2_LOG <- lm(tau_df_halo_LOG$R2_S1 ~ tau_df_halo_LOG$R2_S2)
+run2.2v3_LOG <- lm(tau_df_halo_LOG$R2_S2 ~ tau_df_halo_LOG$R2_S3)
+run2.1v3_LOG <- lm(tau_df_halo_LOG$R2_S1 ~ tau_df_halo_LOG$R2_S3)
+summary(run2.1v2_LOG)
+summary(run2.2v3_LOG)
+summary(run2.1v3_LOG)
+stargazer(run2.1v2_LOG, run2.1v3_LOG, run2.2v3_LOG, type ="text",title = "Run 2 Intra-assay Linear Regression")
+# Run 3
+run3.1v2_LOG <- lm(tau_df_halo_LOG$R3_S1 ~ tau_df_halo_LOG$R3_S2)
+run3.2v3_LOG <- lm(tau_df_halo_LOG$R3_S2 ~ tau_df_halo_LOG$R3_S3)
+run3.1v3_LOG <- lm(tau_df_halo_LOG$R3_S1 ~ tau_df_halo_LOG$R3_S3)
+summary(run3.1v2_LOG)
+summary(run3.2v3_LOG)
+summary(run3.1v3_LOG)
+stargazer(run3.1v2_LOG, run3.1v3_LOG, run3.2v3_LOG, type ="text",title = "Run 3 Intra-assay Linear Regression")
+
+# Combined intra-assay model output
+stargazer(run1.1v2_LOG, run2.1v2_LOG, run2.1v3_LOG, run2.2v3_LOG, run3.1v2_LOG, run3.1v3_LOG, run3.2v3_LOG, type="text", title = "Intra-assay Untranformed Linear Regression")
+
+# Inter-assay Linear Models  #
+#--------------------------------------------------
+# Slide 1
+slide1.r1vr2_LOG <- lm(tau_df_halo_LOG$R1_S1 ~ tau_df_halo_LOG$R2_S1)
+summary(slide1.r1vr2_LOG)
+slide1.r2vr3_LOG <- lm(tau_df_halo_LOG$R2_S1 ~ tau_df_halo_LOG$R3_S1)
+summary(slide1.r2vr3_LOG)
+slide1.r1vr3_LOG <- lm(tau_df_halo_LOG$R1_S1 ~ tau_df_halo_LOG$R3_S1)
+summary(slide1.r1vr3_LOG)
+stargazer(slide1.r1vr2_LOG, slide1.r2vr3_LOG, slide1.r1vr3_LOG, type ="text", title = "Slide 1 Untransformed Inter-assay Linear Regression Models")
+
+# Slide 2
+slide2.r1vr2_LOG <- lm(tau_df_halo_LOG$R1_S2 ~ tau_df_halo_LOG$R2_S2)
+summary(slide2.r1vr2_LOG)
+slide2.r2vr3_LOG <- lm(tau_df_halo_LOG$R2_S2 ~ tau_df_halo_LOG$R3_S2)
+summary(slide2.r2vr3_LOG)
+slide2.r1vr3_LOG <- lm(tau_df_halo_LOG$R1_S2 ~ tau_df_halo_LOG$R3_S2)
+summary(slide2.r1vr3_LOG)
+stargazer(slide2.r1vr2_LOG, slide2.r1vr3_LOG, slide2.r2vr3_LOG, type ="text", title = "Slide 2 Untransformed Inter-assay Linear Regression Models")
+
+# Slide 3
+slide3.r2vr3_LOG <- lm(tau_df_halo_LOG$R2_S3 ~ tau_df_halo_LOG$R3_S3)
+summary(slide3.r2vr3_LOG)
+stargazer(slide3.r2vr3_LOG, type ="text", title = "Slide 3 Untransformed Inter-assay Linear Regression Models")
+
+# Combined inter-assay model output
+stargazer(slide1.r1vr2_LOG, slide1.r2vr3_LOG, slide1.r1vr3_LOG,  slide2.r1vr2_LOG ,slide2.r2vr3_LOG ,slide2.r1vr3_LOG, slide3.r2vr3_LOG, type ="text", title = "Inter-assay Untransformed Linear Regression Models")
+```
+#### **Log Transformed Intra-assay Plots**
+```{r log transformed intra assay scatter plots, echo=FALSE, warning=FALSE}
+# Intra-assay Scatter Plots  #
+#--------------------------------------------------
+# Run 1 Plot
+r1.1v2_LOG <- ggplot(data = tau_df_halo_LOG, aes(x = R1_S1, y = R1_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R1.S1 %AO") + ylab("R1.S2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 20, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# List cores which are outliers/problems
+r1.s1.s2_large_differences_LOG <- all.diff_LOG[,c("CORES","R1.S1_R1.S2")]
+
+# Run 2 Plot (1v2)
+r2.1v2_LOG <- ggplot(data = tau_df_halo_LOG, aes(x = R2_S1, y = R2_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S1 %AO") + ylab("R2.S2 %AO") +  theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+r2.s1.s2_large_differences_LOG <- all.diff_LOG[,c("CORES","R2.S1_R2.S2")]
+
+# Run 2 Plot (2v3)
+r2.2v3_LOG <- ggplot(data = tau_df_halo_LOG, aes(x = R2_S2, y = R2_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S2 %AO") + ylab("R2.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+r2.s2.s3_large_differences_LOG <- all.diff_LOG[,c("CORES","R2.S2_R2.S3")]
+
+# Run 2 Plot (1v3)
+r2.1v3_LOG <- ggplot(data = tau_df_halo_LOG, aes(x = R2_S1, y = R2_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S1 %AO") + ylab("R2.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+r2.s1.s3_large_differences_LOG <- all.diff_LOG[,c("CORES","R2.S1_R2.S3")]
+
+# Run 3 Plot (1v2)
+r3.1v2_LOG <- ggplot(data = tau_df_halo_LOG, aes(x = R3_S1, y = R3_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S1 %AO") + ylab("R3.S2 %AO") +  theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# List cores which are outliers/problems
+r3.s1.s2_large_differences_LOG <- all.diff_LOG[,c("CORES","R3.S1_R3.S2")]
+
+# Run 3 Plot (2v3)
+r3.2v3_LOG <- ggplot(data = tau_df_halo_LOG, aes(x = R3_S2, y = R3_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S2 %AO") + ylab("R3.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# List cores which are outliers/problems
+r3.s2.s3_large_differences_LOG <- all.diff_LOG[,c("CORES","R3.S2_R3.S3")]
+
+# Run 3 Plot (1v3)
+r3.1v3_LOG <- ggplot(data = tau_df_halo_LOG, aes(x = R3_S1, y = R3_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S1 %AO") + ylab("R3.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# List cores which are outliers/problems
+r3.s1.s3_large_differences_LOG <- all.diff_LOG[,c("CORES","R3.S1_R3.S3")]
+
+# Prints Intra-assay Scatter Plots Together  #
+#-------------------------------------------------------------------
+untransformed_intra <- ggarrange(r1.1v2_LOG, r2.1v2_LOG, r2.2v3_LOG, ncol = 3, nrow = 1) 
+annotate_figure(untransformed_intra, top = text_grob("Log Untransformed Intra-assay - tau",  face = "bold", size = 10))
+untransformed2_intra <- ggarrange(r2.1v3_LOG, r3.1v2_LOG, r3.2v3_LOG, ncol = 3, nrow = 1)
+annotate_figure(untransformed_intra, top = text_grob("Log Untransformed Intra-assay - tau",  face = "bold", size = 10))
+untransformed3_intra <- ggarrange(r3.1v3_LOG, ncol = 3, nrow = 1) 
+annotate_figure(untransformed_intra, top = text_grob("Log Untransformed Intra-assay - tau",  face = "bold", size = 10))
+```
+
+#### **Log Transformed Inter-Assay tau BA Plots**
+```{r log transformed interassay BA plots, echo=FALSE }
+#intra-assay BA
+# Run 1
+r1.1v2_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R1_S1 , tau_df_halo_LOG$R1_S2)
+plot(r1.1v2_ba_stats$means, r1.1v2_ba_stats$diffs,
+     sub=paste("Mean Bias is",r1.1v2_ba_stats$mean.diffs, "and the P-Value is", r1s1vsr1s2$p.value),
+     main="Untransformed tau Run 1 - Slide 1 v. Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.1v2_ba_stats$lines, col=c("red","blue","red"))
+
+#Run 2
+r2.1v2_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R2_S1 , tau_df_halo_LOG$R2_S2)
+plot(r2.1v2_ba_stats$means, r2.1v2_ba_stats$diffs,
+     sub=paste("Mean Bias is",r2.1v2_ba_stats$mean.diffs, "and the P-Value is", r2s1vsr2s2$p.value),
+     main="Untransformed tau Run 2 - Slide 1 v. Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.1v2_ba_stats$lines, col=c("red","blue","red"))
+
+r2.1v3_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R2_S1 , tau_df_halo_LOG$R2_S3)
+plot(r2.1v3_ba_stats$means, r2.1v3_ba_stats$diffs,
+     sub=paste("Mean Bias is",r2.1v3_ba_stats$mean.diffs, "and the P-Value is", r2s1vsr2s3$p.value),
+     main="Untransformed tau Run 2 - Slide 1 v. Slide 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.1v3_ba_stats$lines, col=c("red","blue","red"))
+
+r2.2v3_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R2_S2 , tau_df_halo_LOG$R2_S3)
+plot(r2.2v3_ba_stats$means, r2.2v3_ba_stats$diffs,
+     sub=paste("Mean Bias is",r2.2v3_ba_stats$mean.diffs, "and the P-Value is", r2s2vsr2s3$p.value),
+     main="Untransformed tau Run 2 - Slide 2 v. Slide 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.2v3_ba_stats$lines, col=c("red","blue","red"))
+#Run 3
+r3.1v2_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R3_S1 , tau_df_halo_LOG$R3_S2)
+plot(r3.1v2_ba_stats$means, r3.1v2_ba_stats$diffs,
+     sub=paste("Mean Bias is",r3.1v2_ba_stats$mean.diffs, "and the P-Value is", r3s1vsr3s2$p.value),
+     main="Untransformed tau Run 3 - Slide 1 v. Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r3.1v2_ba_stats$lines, col=c("red","blue","red"))
+
+r3.1v3_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R3_S1 , tau_df_halo_LOG$R3_S3)
+plot(r3.1v3_ba_stats$means, r3.1v3_ba_stats$diffs,
+     sub=paste("Mean Bias is",r3.1v3_ba_stats$mean.diffs, "and the P-Value is", r3s1vsr3s3$p.value),
+     main="Untransformed tau Run 3 - Slide 1 v. Slide 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r3.1v3_ba_stats$lines, col=c("red","blue","red"))
+
+r3.2v3_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R3_S2 , tau_df_halo_LOG$R3_S3)
+plot(r3.2v3_ba_stats$means, r3.2v3_ba_stats$diffs,
+     sub=paste("Mean Bias is",r3.2v3_ba_stats$mean.diffs, "and the P-Value is", r3s2vsr3s3$p.value),
+     main="Untransformed tau Run 3 - Slide 2 v. Slide 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r3.2v3_ba_stats$lines, col=c("red","blue","red"))
+
+# Inter Assay BA
+# Slide 1
+r1.r2_s1_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R1_S1 , tau_df_halo_LOG$R2_S1)
+plot(r1.r2_s1_ba_stats$means, r1.r2_s1_ba_stats$diffs,
+     sub=paste("Mean Bias is",r1.r2_s1_ba_stats$mean.diffs, "and the P-Value is", r1s1vsr2s1$p.value),
+     main="Untransformed tau Run 1 vs Run 2 - Slide 1", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.r2_s1_ba_stats$lines, col=c("red","blue","red"))
+
+r1.r3_s1_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R1_S1 , tau_df_halo_LOG$R3_S1)
+plot(r1.r3_s1_ba_stats$means, r1.r3_s1_ba_stats$diffs,
+     sub=paste("Mean Bias is",r1.r3_s1_ba_stats$mean.diffs, "and the P-Value is", r1s1vsr3s1$p.value),
+     main="Untransformed tau Run 1 vs Run 3 - Slide 1", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.r3_s1_ba_stats$lines, col=c("red","blue","red"))
+
+r2.r3_s1_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R2_S1 , tau_df_halo_LOG$R3_S1)
+plot(r2.r3_s1_ba_stats$means, r2.r3_s1_ba_stats$diffs,
+     sub=paste("Mean Bias is",r2.r3_s1_ba_stats$mean.diffs, "and the P-Value is", r2s1vsr3s1$p.value),
+     main="Untransformed tau Run 2 vs Run 3 - Slide 1", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.r3_s1_ba_stats$lines, col=c("red","blue","red"))
+
+# Slide 2
+r1.r2_s2_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R1_S2 , tau_df_halo_LOG$R2_S2)
+plot(r1.r2_s2_ba_stats$means, r1.r2_s2_ba_stats$diffs,
+     sub=paste("Mean Bias is",r1.r2_s2_ba_stats$mean.diffs, "and the P-Value is", r1s2vsr2s2$p.value),
+     main="Untransformed tau Run 1 vs Run 2 - Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.r2_s2_ba_stats$lines, col=c("red","blue","red"))
+
+r1.r3_s2_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R1_S2 , tau_df_halo_LOG$R3_S2)
+plot(r1.r3_s2_ba_stats$means, r1.r3_s2_ba_stats$diffs,
+     sub=paste("Mean Bias is",r1.r3_s2_ba_stats$mean.diffs, "and the P-Value is", r1s2vsr3s2$p.value),
+     main="Untransformed tau Run 1 vs Run 3 - Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.r3_s2_ba_stats$lines, col=c("red","blue","red"))
+
+r2.r3_s2_ba_stats <- bland.altman.stats(tau_df_halo_LOG$R2_S2 , tau_df_halo_LOG$R3_S2)
+plot(r2.r3_s2_ba_stats$means, r2.r3_s2_ba_stats$diffs,
+     sub=paste("Mean Bias is",r2.r3_s2_ba_stats$mean.diffs, "and the P-Value is", r2s2vsr3s2$p.value),
+     main="Untransformed tau Run 2 vs Run 3 - Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.r3_s2_ba_stats$lines, col=c("red","blue","red"))
+
+```
+
+```{r log transformed Inter assay BA plots, echo=FALSE}
+# Inter Assay Bland-Altman plots
+r1.r2_s1_ba_stats_1 <- blandr.draw(tau_df_halo_LOG$R1_S1, tau_df_halo_LOG$R2_S1, plotTitle = 'Log Untransformed R1 v. R2 - Slide 1' ,ciDisplay = F , ciShading = FALSE )
+r1.r3_s1_ba_stats_1 <- blandr.draw(tau_df_halo_LOG$R1_S1, tau_df_halo_LOG$R3_S1, plotTitle = 'Log Untransformed R1 v. R3 - Slide 1' ,
+            ciDisplay = F , ciShading = FALSE )
+r2.r3_s1_ba_stats_1 <- blandr.draw(tau_df_halo_LOG$R2_S1, tau_df_halo_LOG$R3_S1, plotTitle = 'Log Untransformed R2 v. R3 - Slide 1' ,
+            ciDisplay = F , ciShading = FALSE )
+
+
+r1.r2_s2_ba_stats_1 <- blandr.draw( tau_df_halo_LOG$R1_S2 , tau_df_halo_LOG$R2_S2 , plotTitle = 'Log Untransformed R1 v. R2 - Slide 2' ,
+             ciDisplay = F , ciShading = FALSE )
+r1.r3_s2_ba_stats_1 <- blandr.draw( tau_df_halo_LOG$R1_S2 , tau_df_halo_LOG$R3_S2 , plotTitle = 'Log Untransformed R1 v. R3 - Slide 2' ,
+             ciDisplay = F , ciShading = FALSE )
+r2.r3_s2_ba_stats_1 <- blandr.draw( tau_df_halo_LOG$R2_S2 , tau_df_halo_LOG$R3_S2 , plotTitle = 'Log Untransformed R2 v. R3 - Slide 2' ,
+             ciDisplay = F , ciShading = FALSE )
+```
+
+#### **Log Transformed Inter-assay Plots**
+```{r log transformed inter assay scatter plots, echo=FALSE, warning=FALSE}
+####    Inter-assay plots     ####
+# Slide 1
+inter1.s1.1v2_LOG<- ggplot(data = inter1_LOG, aes(x = R1_S1, y = R2_S1)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 1 %AO") + ylab("Run 2 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter1.s1.2v3_LOG<- ggplot(data = inter1_LOG, aes(x = R2_S1, y = R3_S1)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 2 Slide 1 %AO") + ylab("Run 3 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter1.s1.1v3_LOG<- ggplot(data = inter1_LOG, aes(x = R1_S1, y = R3_S1)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 1 %AO") + ylab("Run 3 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Slide 2
+inter2.s2.1v2_LOG<- ggplot(data = inter2_LOG, aes(x = R1_S2, y = R2_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 2 %AO") + ylab("Run 2 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter2.s2.2v3_LOG<- ggplot(data = inter2_LOG, aes(x = R2_S2, y = R3_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 2 Slide 2 %AO") + ylab("Run 3 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter2.s2.1v3_LOG<- ggplot(data = inter2_LOG, aes(x = R1_S2, y = R3_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 2 %AO") + ylab("Run 3 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Slide 3
+inter3.s3.2v3_LOG<- ggplot(data = inter3_LOG, aes(x = R2_S3, y = R3_S3)) + 
+  geom_point(size = 2, colour = "blue") +
+  geom_smooth(method = "lm", colour = "red", se = FALSE) + 
+  xlab("Run 2 Slide 3 %AO") + ylab("Run 3 Slide 3 %AO") +  
+  ggtitle("Slide 3 Comparison") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+
+# Prints Inter-assay Scatter Plots Together  #
+#-------------------------------------------------------------------
+untransformed_inter_LOG <- ggarrange(inter1.s1.1v2_LOG, inter1.s1.2v3_LOG, inter1.s1.1v3_LOG, inter2.s2.1v2_LOG, inter2.s2.2v3_LOG, inter2.s2.1v3_LOG, ncol = 3, nrow = 2)
+annotate_figure(untransformed_inter_LOG, top = text_grob("Log Untransformed Inter-assay -tau",  face = "bold", size = 16))
+# removes run 2 vs run 3 comparison
+untransformed_inter_LOG <- ggarrange(inter1.s1.1v2_LOG, inter1.s1.1v3_LOG, inter2.s2.1v2_LOG, inter2.s2.1v3_LOG, ncol = 2, nrow = 2)
+annotate_figure(untransformed_inter_LOG, top = text_grob(" Log Untransformed Inter-assay - tau",  face = "bold", size = 16))
+
+```
+
+
+### **Transform values to Run 1**
+```{r transform log transformed values based on regression model, echo=FALSE}
+### **Transform values to Run 1**
+# Transforms run 2 values to run 1  - slide 1
+tau_df_halo_LOG$R2_S1_t <-  coef(summary(slide1.r1vr2_LOG))[2, 1]  * inter1_LOG$R2_S1 + coef(summary(slide1.r1vr2_LOG))[1, 1]
+# Transforms run 3 values to run 1 - slide 1
+tau_df_halo_LOG$R3_S1_t <-  coef(summary(slide1.r1vr3_LOG))[2, 1]  * inter1_LOG$R3_S1 + coef(summary(slide1.r1vr3_LOG))[1, 1]
+
+# Transforms run 2 values to run 1 - slide 2
+tau_df_halo_LOG$R2_S2_t <-  coef(summary(slide2.r1vr2_LOG))[2, 1]  * inter2_LOG$R2_S2 + coef(summary(slide2.r1vr2_LOG))[1, 1]
+# Transforms run 3 values to run 1 - slide 2
+tau_df_halo_LOG$R3_S2_t <-  coef(summary(slide2.r1vr3_LOG))[2, 1]  * inter2_LOG$R3_S2 + coef(summary(slide2.r1vr3_LOG))[1, 1]
+
+```
+
+```{r Transformed to run 1 differences columns, echo=FALSE, include=FALSE}
+# Intra-assay #
+#---------------------------------------------------------------
+# Run 1
+tau_df_halo_LOG$R1.S1_R1.S2_t <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R1_S2
+# Run 2
+tau_df_halo_LOG$R2.S1_R2.S2_t <- tau_df_halo_LOG$R2_S1_t - tau_df_halo_LOG$R2_S2_t
+tau_df_halo_LOG$R2.S1_R2.S3_t <- tau_df_halo_LOG$R2_S1_t - tau_df_halo_LOG$R2_S3
+tau_df_halo_LOG$R2.S2_R2.S3_t <- tau_df_halo_LOG$R2_S2_t - tau_df_halo_LOG$R2_S3
+# Run 3
+tau_df_halo_LOG$R3.S1_R3.S2_t <- tau_df_halo_LOG$R3_S1_t - tau_df_halo_LOG$R3_S2_t
+tau_df_halo_LOG$R3.S1_R3.S3_t <- tau_df_halo_LOG$R3_S1_t - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R3.S2_R3.S3_t <- tau_df_halo_LOG$R3_S2_t - tau_df_halo_LOG$R3_S3
+
+# Inter-Assay #
+#---------------------------------------------------------------
+# Slide 1
+tau_df_halo_LOG$R1.S1_R2.S1_t <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R2_S1_t
+tau_df_halo_LOG$R1.S1_R3.S1_t <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R3_S1_t   # Problem row... values identical to column 3
+tau_df_halo_LOG$R2.S1_R3.S1_t <- tau_df_halo_LOG$R2_S1_t - tau_df_halo_LOG$R3_S1_t
+# Slide 2
+tau_df_halo_LOG$R1.S2_R2.S2_t <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R2_S2_t
+tau_df_halo_LOG$R1.S2_R3.S2_t <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R3_S2_t
+tau_df_halo_LOG$R2.S2_R3.S2_t <- tau_df_halo_LOG$R2_S2_t - tau_df_halo_LOG$R3_S2_t
+# Slide 3
+tau_df_halo_LOG$R2.S3_R3.S3_t <- tau_df_halo_LOG$R2_S3 - tau_df_halo_LOG$R3_S3
+
+##### Other Combinations Across Runs and Slides #####
+tau_df_halo_LOG$R1.S1_R2.S2_t <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R2_S2_t   # Problem row... values identical to column 5
+tau_df_halo_LOG$R1.S1_R2.S3_t <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R2_S3
+tau_df_halo_LOG$R1.S1_R3.S2_t <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R3_S2_t
+tau_df_halo_LOG$R1.S1_R3.S3_t <- tau_df_halo_LOG$R1_S1 - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R1.S2_R2.S1_t <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R2_S1_t
+tau_df_halo_LOG$R1.S2_R2.S3_t <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R2_S3
+tau_df_halo_LOG$R1.S2_R3.S1_t <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R3_S1_t
+tau_df_halo_LOG$R1.S2_R3.S3_t <- tau_df_halo_LOG$R1_S2 - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R2.S1_R3.S2_t <- tau_df_halo_LOG$R2_S1_t - tau_df_halo_LOG$R3_S2_t
+tau_df_halo_LOG$R2.S1_R3.S3_t <- tau_df_halo_LOG$R2_S1_t - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R2.S2_R3.S1_t <- tau_df_halo_LOG$R2_S2_t - tau_df_halo_LOG$R3_S1_t  # Problem line... resulting in 0 values in column
+tau_df_halo_LOG$R2.S2_R3.S3_t <- tau_df_halo_LOG$R2_S2_t - tau_df_halo_LOG$R3_S3
+tau_df_halo_LOG$R2.S3_R3.S1_t <- tau_df_halo_LOG$R2_S3 - tau_df_halo_LOG$R3_S1_t
+tau_df_halo_LOG$R2.S3_R3.S2_t <- tau_df_halo_LOG$R2_S3 - tau_df_halo_LOG$R3_S2_t
+
+
+# Create vectors of intra and inter-assay groupings ####
+#---------------------------------------------------------
+# Intra-assay groups
+intra1_t <- tau_df_halo_LOG[,c("R1_S1", "R1_S2")] #, "R1.S1_R1.S2"
+intra2_t <- tau_df_halo_LOG[,c("R2_S1_t", "R2_S2_t", "R2_S3")] #, "R2.S1_R2.S2", "R2.S1_R2.S3", "R2.S2_R2.S3"
+intra3_t <- tau_df_halo_LOG[,c("R3_S1_t", "R3_S2_t", "R3_S3")] # , "R3.S1_R3.S2", "R3.S1_R3.S3", "R3.S2_R3.S3"
+# Inter-assay groups
+inter1_t <- tau_df_halo_LOG[,c("R1_S1", "R2_S1_t", "R3_S1_t")] #, "R1.S1_R2.S1", "R1.S1_R3.S1", "R2.S1_R3.S1"  
+inter2_t <- tau_df_halo_LOG[,c("R1_S2", "R2_S2_t", "R3_S2_t")] #, "R1.S2_R2.S2", "R1.S2_R3.S2", "R2.S2_R3.S2"
+inter3_t <- tau_df_halo_LOG[,c("R2_S3", "R3_S3")] #,"R2.S3_R3.S3"
+
+```
+
+```{r Transformed to run 1 one sample t-tests, echo=FALSE, include=FALSE}
+# Intra-assay #
+#---------------------------------------------------------------
+
+# Run 2
+r2s1vsr2s2_t <- t.test(tau_df_halo_LOG$R2.S1_R2.S2_t, mu = 0)
+r2s1vsr2s3_t <- t.test(tau_df_halo_LOG$R2.S1_R2.S3_t, mu = 0)
+r2s2vsr2s3_t <- t.test(tau_df_halo_LOG$R2.S2_R2.S3_t, mu = 0)
+# Run 3
+r3s1vsr3s2_t <- t.test(tau_df_halo_LOG$R3.S1_R3.S2_t, mu = 0) 
+r3s1vsr3s3_t <- t.test(tau_df_halo_LOG$R3.S1_R3.S3_t, mu = 0) 
+r3s2vsr3s3_t <- t.test(tau_df_halo_LOG$R3.S2_R3.S3_t, mu = 0)
+
+# Inter-assay #
+#---------------------------------------------------------------
+# Slide 1
+r1s1vsr2s1_t <- t.test(tau_df_halo_LOG$R1.S1_R2.S1_t, mu = 0)
+r1s1vsr3s1_t <- t.test(tau_df_halo_LOG$R1.S1_R3.S1_t, mu = 0)
+r2s1vsr3s1_t <- t.test(tau_df_halo_LOG$R2.S1_R3.S1_t, mu = 0)
+# Slide 2
+r1s2vsr2s2_t <- t.test(tau_df_halo_LOG$R1.S2_R2.S2_t, mu = 0)
+r1s2vsr3s2_t <- t.test(tau_df_halo_LOG$R1.S2_R3.S2_t, mu = 0) 
+r2s2vsr3s2 <- t.test(tau_df_halo_LOG$R2.S2_R3.S2_t, mu = 0) 
+# Slide 3
+r2s2vsr3s3_t <- t.test(tau_df_halo_LOG$R2.S3_R3.S3_t, mu = 0)
+
+
+
+##### Other Combinations Across Runs and Slides #####
+r1s1vsr2s2_t <- t.test(tau_df_halo_LOG$R1.S1_R2.S2_t, mu = 0)
+r1s2vsr2s3_t <- t.test(tau_df_halo_LOG$R1.S1_R2.S3_t, mu = 0)
+r1s1vsr3s2_t <- t.test(tau_df_halo_LOG$R1.S1_R3.S2_t, mu = 0)
+r1s1vsr3s3_t <- t.test(tau_df_halo_LOG$R1.S1_R3.S3_t, mu = 0)
+r1s2vsr2s1_t <- t.test(tau_df_halo_LOG$R1.S2_R2.S1_t, mu = 0)
+r1s2vsr2s3_t <- t.test(tau_df_halo_LOG$R1.S2_R2.S3_t, mu = 0)  
+r1s2vsr3s1_t <- t.test(tau_df_halo_LOG$R1.S2_R3.S1_t, mu = 0)
+r1s1vsr3s3_t <- t.test(tau_df_halo_LOG$R1.S2_R3.S3_t, mu = 0) 
+r2s1vsr3s2_t <- t.test(tau_df_halo_LOG$R2.S1_R3.S2_t, mu = 0)
+r2s1vsr3s3_t <- t.test(tau_df_halo_LOG$R2.S1_R3.S3_t, mu = 0)
+r2s2vsr3s1_t <- t.test(tau_df_halo_LOG$R2.S2_R3.S1_t, mu = 0)
+r2s2vsr3s3_t <- t.test(tau_df_halo_LOG$R2.S2_R3.S3_t, mu = 0) 
+r2s3vsr3s1_t <- t.test(tau_df_halo_LOG$R2.S3_R3.S1_t, mu = 0)
+r2s3vsr3s2_t <- t.test(tau_df_halo_LOG$R2.S3_R3.S2_t, mu = 0)
+r2s2vsr3s2_t <- t.test(tau_df_halo_LOG$R2.S2_R3.S2_t, mu = 0)
+
+```
+
+```{r Transformed to run 1 correlation matrices, echo=FALSE}
+         # Intra-assay Correlation Matrix  #
+# Intra-assay Correlation Matrix  #
+#--------------------------------------------------
+intra2.corr_t <- lower.tri.cor.matrix(intra2_t)
+intra3.corr_t <- lower.tri.cor.matrix(intra3_t)
+# Inter-assay Correlation Matrix  #
+#--------------------------------------------------
+inter1.corr_t <- lower.tri.cor.matrix(inter1_t)
+inter2.corr_t <- lower.tri.cor.matrix(inter2_t)
+inter3.corr_t <- lower.tri.cor.matrix(inter3_t)
+```
+
+#### **Transformed to run 1 Intra-assay correlations**`
+##### **Run 2** `r knitr::kable(intra2.corr_t)`
+##### **Run 3** `r knitr::kable(intra3.corr_t)`
+#### **Transformed to run 1 Inter-assay correlations**
+##### **Run 1** `r knitr::kable(inter1.corr_t)`
+##### **Run 2** `r knitr::kable(inter2.corr_t)`
+##### **Run 3** `r knitr::kable(inter3.corr_t)`
+
+#### **Compare Untransformed Inter-Assay Correlations to Transformed**
+##### **Run 1 - Untranformed** `r knitr::kable(inter1.corr)`
+##### **Run 1** `r knitr::kable(inter1.corr_t)`
+##### **Run 2 - Untranformed** `r knitr::kable(inter2.corr)`
+##### **Run 2** `r knitr::kable(inter2.corr_t)`
+##### **Run 3 - Untranformed** `r knitr::kable(inter3.corr)`
+##### **Run 3** `r knitr::kable(inter3.corr_t)`
+
+
+```{r Transformed to run 1 linear models, echo=FALSE, include=FALSE}
+# Intra-assay Linear Models  #
+#--------------------------------------------------
+# Run 1
+run1.1v2_t <- lm(tau_df_halo_LOG$R1_S1 ~ tau_df_halo_LOG$R1_S2)
+summary(run1.1v2_t)
+stargazer(run1.1v2_t, type ="text", title = "Run 1 Intra-assay Linear Regression")  # In table, Constant=?? and value below in ()=Std. Error
+# Run 2
+run2.1v2_t <- lm(tau_df_halo_LOG$R2_S1_t ~ tau_df_halo_LOG$R2_S2_t)
+run2.2v3_t <- lm(tau_df_halo_LOG$R2_S2_t ~ tau_df_halo_LOG$R2_S3)
+run2.1v3_t <- lm(tau_df_halo_LOG$R2_S1_t ~ tau_df_halo_LOG$R2_S3)
+summary(run2.1v2_t)
+summary(run2.2v3_t)
+summary(run2.1v3_t)
+stargazer(run2.1v2_t, run2.1v3_t, run2.2v3_t, type ="text",title = "Run 2 Intra-assay Linear Regression")
+# Run 3
+run3.1v2_t <- lm(tau_df_halo_LOG$R3_S1_t ~ tau_df_halo_LOG$R3_S2_t)
+run3.2v3_t <- lm(tau_df_halo_LOG$R3_S2_t ~ tau_df_halo_LOG$R3_S3)
+run3.1v3_t <- lm(tau_df_halo_LOG$R3_S1_t ~ tau_df_halo_LOG$R3_S3)
+summary(run3.1v2_t)
+summary(run3.2v3_t)
+summary(run3.1v3_t)
+stargazer(run3.1v2_t, run3.1v3_t, run3.2v3_t, type ="text",title = "Run 3 Intra-assay Linear Regression")
+
+# Combined intra-assay model output
+stargazer(run1.1v2_t, run2.1v2_t, run2.1v3_t, run2.2v3_t, run3.1v2_t, run3.1v3_t, run3.2v3_t, type="text", title = "Intra-assay Untranformed Linear Regression")
+
+# Inter-assay Linear Models  #
+#--------------------------------------------------
+# Slide 1
+slide1.r1vr2_t <- lm(tau_df_halo_LOG$R1_S1 ~ tau_df_halo_LOG$R2_S1_t)
+summary(slide1.r1vr2_t)
+slide1.r2vr3_t <- lm(tau_df_halo_LOG$R2_S1_t ~ tau_df_halo_LOG$R3_S1_t)
+summary(slide1.r2vr3_t)
+slide1.r1vr3_t <- lm(tau_df_halo_LOG$R1_S1 ~ tau_df_halo_LOG$R3_S1_t)
+summary(slide1.r1vr3_t)
+stargazer(slide1.r1vr2_t,slide1.r2vr3_t,slide1.r1vr3_t, type ="text", title = "Slide 1 Transformed to run 1 Inter-assay Linear Regression Models")
+
+# Slide 2
+slide2.r1vr2_t <- lm(tau_df_halo_LOG$R1_S2 ~ tau_df_halo_LOG$R2_S2_t)
+summary(slide2.r1vr2_t)
+slide2.r2vr3_t <- lm(tau_df_halo_LOG$R2_S2_t ~ tau_df_halo_LOG$R3_S2_t)
+summary(slide2.r2vr3_t)
+slide2.r1vr3_t <- lm(tau_df_halo_LOG$R1_S2 ~ tau_df_halo_LOG$R3_S2_t)
+summary(slide2.r1vr3_t)
+stargazer(slide2.r1vr2_t,slide2.r1vr3_t, type ="text", title = "Slide 2 Transformed to run 1 Inter-assay Linear Regression Models")
+
+# Slide 3
+slide3.r2vr3_t <- lm(tau_df_halo_LOG$R2_S3 ~ tau_df_halo_LOG$R3_S3)
+summary(slide3.r2vr3_t)
+stargazer(slide3.r2vr3_t, type ="text", title = "Slide 3 Transformed to run 1 Inter-assay Linear Regression Models")
+
+# Combined inter-assay model output
+stargazer(slide1.r1vr2_t,slide1.r2vr3_t,slide1.r1vr3_t, slide2.r1vr2_t,slide2.r2vr3_t,slide2.r1vr3_t,slide3.r2vr3_t, type ="text", title = "Inter-assay Transformed to run 1 Linear Regression Models")
+
+```
+
+#### **Transformed to run 1 Intra-assay Plots**
+```{r Transformed to run 1 intra assay scatter plots, echo=FALSE, warning=FALSE}
+# Intra-assay Scatter Plots  #
+#--------------------------------------------------
+# Run 1 Plot
+r1.1v2_t <- ggplot(data = tau_df_halo_LOG, aes(x = R1_S1, y = R1_S2)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R1.S1 %AO") + ylab("R1.S2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 20, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Run 2 Plot (1v2)
+r2.1v2_t <- ggplot(data = tau_df_halo_LOG, aes(x = R2_S1_t, y = R2_S2_t)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S1 %AO") + ylab("R2.S2 %AO") +  theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# Run 2 Plot (2v3)
+r2.2v3_t <- ggplot(data = tau_df_halo_LOG, aes(x = R2_S2_t, y = R2_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S2 %AO") + ylab("R2.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+# Run 2 Plot (1v3)
+r2.1v3_t <- ggplot(data = tau_df_halo_LOG, aes(x = R2_S1_t, y = R2_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R2.S1 %AO") + ylab("R2.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Run 3 Plot (1v2)
+r3.1v2_t <- ggplot(data = tau_df_halo_LOG, aes(x = R3_S1_t, y = R3_S2_t)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S1 %AO") + ylab("R3.S2 %AO") +  theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Run 3 Plot (2v3)
+r3.2v3_t <- ggplot(data = tau_df_halo_LOG, aes(x = R3_S2_t, y = R3_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S2 %AO") + ylab("R3.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+
+# Run 3 Plot (1v3)
+r3.1v3_t <- ggplot(data = tau_df_halo_LOG, aes(x = R3_S1_t, y = R3_S3)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("R3.S1 %AO") + ylab("R3.S3 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+
+# Prints Intra-assay Scatter Plots Together  #
+#-------------------------------------------------------------------
+transformed_intra <- ggarrange(r1.1v2_t, r2.1v2_t, r2.2v3_t, ncol = 3, nrow = 1) 
+annotate_figure(untransformed_intra, top = text_grob("Transformed to Run 1 transformed Intra-assay - tau",  face = "bold", size = 10))
+transformed2_intra <- ggarrange(r2.1v3_t, r3.1v2_t, r3.2v3_t, ncol = 3, nrow = 1)
+annotate_figure(untransformed2_intra, top = text_grob("Transformed to Run 1 transformed Intra-assay - tau",  face = "bold", size = 10))
+transformed3_intra <- ggarrange(r3.1v3_t, ncol = 3, nrow = 1) 
+annotate_figure(untransformed3_intra, top = text_grob("Transformed to Run 1 transformed Intra-assay - tau",  face = "bold", size = 10))
+
+```
+
+#### **Transformed Intra-Assay tau BA Plots**
+```{r transformed intra-assay BA plots, echo=FALSE }
+#intra-assay BA
+# Run 1
+r1.1v2_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R1_S1 , tau_df_halo_LOG$R1_S2)
+plot(r1.1v2_ba_stats$means, r1.1v2_ba_stats$diffs,
+     sub=paste("Untransformed Identical to Transformed"),
+     main="Transformed tau Run 1 - Slide 1 v. Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.1v2_ba_stats$lines, col=c("red","blue","red"))
+
+#Run 2
+r2.1v2_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R2_S1_t , tau_df_halo_LOG$R2_S2_t)
+plot(r2.1v2_ba_stats_t$means, r2.1v2_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r2.1v2_ba_stats_t$mean.diffs, "and the P-Value is", r2s1vsr2s2_t$p.value),
+     main="Transformed tau Run 2 - Slide 1 v. Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.1v2_ba_stats_t$lines, col=c("red","blue","red"))
+
+r2.1v3_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R2_S1_t , tau_df_halo_LOG$R2_S3)
+plot(r2.1v3_ba_stats_t$means, r2.1v3_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r2.1v3_ba_stats_t$mean.diffs, "and the P-Value is", r2s1vsr2s3_t$p.value),
+     main="Transformed tau Run 2 - Slide 1 v. Slide 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.1v3_ba_stats_t$lines, col=c("red","blue","red"))
+
+r2.2v3_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R2_S2_t , tau_df_halo_LOG$R2_S3)
+plot(r2.2v3_ba_stats_t$means, r2.2v3_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r2.2v3_ba_stats_t$mean.diffs, "and the P-Value is", r2s2vsr2s3_t$p.value),
+     main="Transformed tau Run 2 - Slide 2 v. Slide 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.2v3_ba_stats_t$lines, col=c("red","blue","red"))
+#Run 3
+r3.1v2_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R3_S1_t , tau_df_halo_LOG$R3_S2_t)
+plot(r3.1v2_ba_stats_t$means, r3.1v2_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r3.1v2_ba_stats_t$mean.diffs, "and the P-Value is", r3s1vsr3s2_t$p.value),
+     main="Transformed tau Run 3 - Slide 1 v. Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r3.1v2_ba_stats_t$lines, col=c("red","blue","red"))
+
+r3.1v3_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R3_S1_t , tau_df_halo_LOG$R3_S3)
+plot(r3.1v3_ba_stats_t$means, r3.1v3_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r3.1v3_ba_stats_t$mean.diffs, "and the P-Value is", r3s1vsr3s3_t$p.value),
+     main="Transformed tau Run 3 - Slide 1 v. Slide 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r3.1v3_ba_stats_t$lines, col=c("red","blue","red"))
+
+r3.2v3_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R3_S2_t , tau_df_halo_LOG$R3_S3)
+plot(r3.2v3_ba_stats_t$means, r3.2v3_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r3.2v3_ba_stats_t$mean.diffs, "and the P-Value is", r3s2vsr3s3_t$p.value),
+     main="Transformed tau Run 3 - Slide 2 v. Slide 3", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r3.2v3_ba_stats_t$lines, col=c("red","blue","red"))
+
+```
+
+#### **Transformed Inter-Assay tau BA Plots**
+```{r transformed inter-assay BA plots, echo=FALSE }
+# Inter Assay BA
+# Slide 1
+r1.r2_s1_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R1_S1 , tau_df_halo_LOG$R2_S1_t)
+plot(r1.r2_s1_ba_stats_t$means, r1.r2_s1_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r1.r2_s1_ba_stats_t$mean.diffs, "and the P-Value is", r1s1vsr2s1_t$p.value),
+     main="Transformed tau Run 1 vs Run 2 - Slide 1", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.r2_s1_ba_stats_t$lines, col=c("red","blue","red"))
+
+r1.r3_s1_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R1_S1 , tau_df_halo_LOG$R3_S1_t)
+plot(r1.r3_s1_ba_stats_t$means, r1.r3_s1_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r1.r3_s1_ba_stats_t$mean.diffs, "and the P-Value is", r1s1vsr3s1_t$p.value),
+     main="Transformed tau Run 1 vs Run 3 - Slide 1", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.r3_s1_ba_stats_t$lines, col=c("red","blue","red"))
+
+r2.r3_s1_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R2_S1_t , tau_df_halo_LOG$R3_S1_t)
+plot(r2.r3_s1_ba_stats_t$means, r2.r3_s1_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r2.r3_s1_ba_stats_t$mean.diffs, "and the P-Value is", r2s1vsr3s1_t$p.value),
+     main="Transformed tau Run 2 vs Run 3 - Slide 1", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.r3_s1_ba_stats_t$lines, col=c("red","blue","red"))
+
+# Slide 2
+r1.r2_s2_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R1_S2 , tau_df_halo_LOG$R2_S2_t)
+plot(r1.r2_s2_ba_stats_t$means, r1.r2_s2_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r1.r2_s2_ba_stats_t$mean.diffs, "and the P-Value is", r1s2vsr2s2_t$p.value),
+     main="Transformed tau Run 1 vs Run 2 - Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.r2_s2_ba_stats_t$lines, col=c("red","blue","red"))
+
+r1.r3_s2_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R1_S2 , tau_df_halo_LOG$R3_S2_t)
+plot(r1.r3_s2_ba_stats_t$means, r1.r3_s2_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r1.r3_s2_ba_stats_t$mean.diffs, "and the P-Value is", r1s2vsr3s2_t$p.value),
+     main="Transformed tau Run 1 vs Run 3 - Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r1.r3_s2_ba_stats_t$lines, col=c("red","blue","red"))
+
+r2.r3_s2_ba_stats_t <- bland.altman.stats(tau_df_halo_LOG$R2_S2_t , tau_df_halo_LOG$R3_S2_t)
+plot(r2.r3_s2_ba_stats_t$means, r2.r3_s2_ba_stats_t$diffs,
+     sub=paste("Mean Bias is",r2.r3_s2_ba_stats_t$mean.diffs, "and the P-Value is", r2s2vsr3s2_t$p.value),
+     main="Transformed tau Run 2 vs Run 3 - Slide 2", pch = 19, xlab = "Means", ylab = "Differences")
+abline(h = r2.r3_s2_ba_stats_t$lines, col=c("red","blue","red"))
+```
+
+
+#### **Transformed to run 1 Inter-assay Plots**
+```{r Transformed to run 1 inter assay scatter plots, echo=FALSE, warning=FALSE}
+####    Inter-assay plots     ####
+# Slide 1
+inter1.s1.1v2_t<- ggplot(data = tau_df_halo_LOG, aes(x = R1_S1, y = R2_S1_t)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 1 %AO") + ylab("Run 2 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter1.s1.2v3_t<- ggplot(data = tau_df_halo_LOG, aes(x = R2_S1_t, y = R3_S1_t)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 2 Slide 1 %AO") + ylab("Run 3 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter1.s1.1v3_t<- ggplot(data = tau_df_halo_LOG, aes(x = R1_S1, y = R3_S1_t)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 1 %AO") + ylab("Run 3 Slide 1 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Slide 2
+inter2.s2.1v2_t<- ggplot(data = tau_df_halo_LOG, aes(x = R1_S2, y = R2_S2_t)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 2 %AO") + ylab("Run 2 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter2.s2.2v3_t<- ggplot(data = tau_df_halo_LOG, aes(x = R2_S2_t, y = R3_S2_t)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 2 Slide 2 %AO") + ylab("Run 3 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+inter2.s2.1v3_t<- ggplot(data = tau_df_halo_LOG, aes(x = R1_S2, y = R3_S2_t)) + geom_point(size = 2, colour = "blue") + geom_smooth(method = "lm", colour = "red", se = FALSE) + xlab("Run 1 Slide 2 %AO") + ylab("Run 3 Slide 2 %AO") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+# Slide 3
+inter3.s3.2v3_t<- ggplot(data = tau_df_halo_LOG, aes(x = R2_S3, y = R3_S3)) + 
+  geom_point(size = 2, colour = "blue") +
+  geom_smooth(method = "lm", colour = "red", se = FALSE) + 
+  xlab("Run 2 Slide 3 %AO") + ylab("Run 3 Slide 3 %AO") +  
+  ggtitle("Slide 3 Comparison") + theme(axis.title = element_text(size = 10), axis.text = element_text(size = 10), plot.title = element_text(size = 10, face = "bold"), legend.text = element_text(size = 10), legend.title = element_text(size = 10))
+
+
+# Prints Inter-assay Scatter Plots Together  #
+#-------------------------------------------------------------------
+transformed_inter1_t <- ggarrange(inter1.s1.1v2_t, inter1.s1.2v3_t, inter1.s1.1v3_t, inter2.s2.1v2_t, inter2.s2.2v3_t, inter2.s2.1v3_t, ncol = 3, nrow = 2)
+annotate_figure(transformed_inter1_t, top = text_grob("Transformed to run 1 Inter-assay -tau",  face = "bold", size = 16))
+# removes run 2 vs run 3 comparison
+transformed_inter2_t <- ggarrange(inter1.s1.1v2_t, inter1.s1.1v3_t, inter2.s2.1v2_t, inter2.s2.1v3_t, ncol = 2, nrow = 2)
+annotate_figure(transformed_inter2_t, top = text_grob("Transformed to run 1 Inter-assay - tau",  face = "bold", size = 16))
+
+```
+
+```{r transformed Inter assay BA plots, echo=FALSE}
+# Inter Assay Bland-Altman plots
+r1.r2_s1_ba_stats_t2 <- blandr.draw(tau_df_halo_LOG$R1_S1, tau_df_halo_LOG$R2_S1_t, plotTitle = 'Transformed R1 v. R2 - Slide 1' ,
+            ciDisplay = F , ciShading = FALSE )
+r1.r3_s1_ba_stats_t2 <- blandr.draw(tau_df_halo_LOG$R1_S1, tau_df_halo_LOG$R3_S1_t, plotTitle = 'Transformed R1 v. R3 - Slide 1' ,
+            ciDisplay = F , ciShading = FALSE )
+r2.r3_s1_ba_stats_t2 <- blandr.draw(tau_df_halo_LOG$R2_S1_t, tau_df_halo_LOG$R3_S1_t, plotTitle = 'Transformed R2 v. R3 - Slide 1' ,
+            ciDisplay = F , ciShading = FALSE )
+
+
+r1.r2_s2_ba_stats_t2 <- blandr.draw( tau_df_halo_LOG$R1_S2 , tau_df_halo_LOG$R2_S2_t , plotTitle = 'Transformed R1 v. R2 - Slide 2' ,
+             ciDisplay = F , ciShading = FALSE )
+r1.r3_s2_ba_stats_t2 <- blandr.draw( tau_df_halo_LOG$R1_S2 , tau_df_halo_LOG$R3_S2_t , plotTitle = 'Transformed R1 v. R3 - Slide 2' ,
+             ciDisplay = F , ciShading = FALSE )
+r2.r3_s2_ba_stats_t2 <- blandr.draw( tau_df_halo_LOG$R2_S2_t , tau_df_halo_LOG$R3_S2_t , plotTitle = 'Transformed R2 v. R3 - Slide 2' ,
+             ciDisplay = F , ciShading = FALSE )
+```
